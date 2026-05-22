@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { UserSettings } from "../../types";
+import { sendTelegramAlert, formatTradeAlert } from "../../lib/telegram";
 
 interface Props {
   settings: UserSettings;
@@ -93,7 +94,39 @@ export default function SettingsDrawer({ settings, onSave }: Props) {
         >
           Save Settings
         </button>
+
+        {form.telegramBotToken && form.telegramChatId && (
+          <TestTelegramButton token={form.telegramBotToken} chatId={form.telegramChatId} />
+        )}
       </div>
+    </div>
+  );
+}
+
+function TestTelegramButton({ token, chatId }: { token: string; chatId: string }) {
+  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  async function test() {
+    setStatus("sending");
+    const msg = formatTradeAlert("BUY", "BTCUSDT", 87650.32, "Test alert from Alpha Scanner");
+    const result = await sendTelegramAlert(token, chatId, msg);
+    setStatus(result.ok ? "ok" : "error");
+    if (!result.ok) setErrorMsg(result.error ?? "Unknown error");
+    setTimeout(() => setStatus("idle"), 3000);
+  }
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={test}
+        disabled={status === "sending"}
+        className="px-3 py-1.5 rounded text-label border border-border text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors disabled:opacity-50"
+      >
+        {status === "sending" ? "Sending..." : "Test Telegram Alert"}
+      </button>
+      {status === "ok" && <span className="ml-2 text-label text-signal-green">Sent!</span>}
+      {status === "error" && <span className="ml-2 text-label text-signal-red">{errorMsg}</span>}
     </div>
   );
 }

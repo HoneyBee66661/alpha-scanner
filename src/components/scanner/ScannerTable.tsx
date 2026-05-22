@@ -2,16 +2,20 @@ import { useState, useMemo } from "react";
 import type { TokenRow, SortColumn, SortDirection } from "../../types";
 import { AllScores } from "../ui/ScoreBadge";
 import SignalTags from "../ui/SignalTag";
+import { downloadCSV } from "../../lib/csv";
 
 interface Props {
   tokens: TokenRow[];
   loading: boolean;
   error?: string | null;
   highlightScore?: "alpha" | "smartMoney" | "swing" | "accumulation" | "consensus";
+  watchlist?: string[];
   onBuy?: (symbol: string) => void;
+  onToggleWatchlist?: (symbol: string) => void;
+  onTokenClick?: (symbol: string) => void;
 }
 
-export default function ScannerTable({ tokens, loading, highlightScore, onBuy }: Props) {
+export default function ScannerTable({ tokens, loading, highlightScore, watchlist, onBuy, onToggleWatchlist, onTokenClick }: Props) {
   const [sort, setSort] = useState<SortColumn>("consensus");
   const [dir, setDir] = useState<SortDirection>("desc");
   const [search, setSearch] = useState("");
@@ -82,6 +86,22 @@ export default function ScannerTable({ tokens, loading, highlightScore, onBuy }:
         <span className="text-label text-text-muted tabular-nums">
           {sorted.length} tokens
         </span>
+        {tokens.length > 0 && (
+          <button
+            onClick={() => {
+              const headers = ["Symbol", "Price", "Vol 24h", "24h %", "Alpha", "Smart Money", "Swing", "Accumulation", "Consensus", "Tags"];
+              const rows = tokens.map((t) => [
+                t.symbol, String(t.price), String(t.volume24h), `${t.priceChange24h.toFixed(2)}%`,
+                String(t.alpha), String(t.smartMoney), String(t.swing),
+                String(t.accumulation), String(t.consensus), t.tags.join("; "),
+              ]);
+              downloadCSV("alpha-scanner-market-data.csv", headers, rows);
+            }}
+            className="px-2 py-0.5 rounded text-label text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors"
+          >
+            Export CSV
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto scroll-thin">
@@ -100,6 +120,7 @@ export default function ScannerTable({ tokens, loading, highlightScore, onBuy }:
             <thead>
               <tr className="sticky top-0 z-10 bg-surface-row text-label text-text-secondary">
                 <th className="w-10 px-3 py-2 text-left">#</th>
+                {onToggleWatchlist && <th className="w-7 px-1 py-2 text-center"></th>}
                 {cols.map((c) => (
                   <th
                     key={c.key}
@@ -129,7 +150,21 @@ export default function ScannerTable({ tokens, loading, highlightScore, onBuy }:
                   <td className="px-3 py-1 text-text-muted tabular-nums">
                     {i + 1}
                   </td>
-                  <td className="px-3 py-1 text-text-primary font-semibold tabular-nums">
+                  {onToggleWatchlist && (
+                    <td className="px-1 py-1 text-center">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onToggleWatchlist(token.symbol); }}
+                        className={`text-label transition-colors ${watchlist?.includes(token.symbol) ? "text-signal-yellow" : "text-text-muted hover:text-signal-yellow"}`}
+                        title={watchlist?.includes(token.symbol) ? "Remove from watchlist" : "Add to watchlist"}
+                      >
+                        {watchlist?.includes(token.symbol) ? "*" : "+"}
+                      </button>
+                    </td>
+                  )}
+                  <td
+                    className="px-3 py-1 text-text-primary font-semibold tabular-nums cursor-pointer hover:text-signal-blue transition-colors"
+                    onClick={() => onTokenClick?.(token.symbol)}
+                  >
                     {token.symbol.replace("USDT", "")}
                     <span className="text-text-muted font-normal">/USDT</span>
                   </td>

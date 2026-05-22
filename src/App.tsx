@@ -1,4 +1,4 @@
-import { useState, useEffect, useSyncExternalStore, useCallback } from "react";
+import { useState, useEffect, useSyncExternalStore, useCallback, useRef } from "react";
 import type {
   ScannerView,
   PaperTrade,
@@ -7,17 +7,34 @@ import type {
 import { useScannerData } from "./hooks/useScannerData";
 import type { DataSource } from "./lib/dataSource";
 import { saveSourcePreference } from "./lib/dataSource";
+import {
+  fetchTrades as supabaseFetchTrades,
+  upsertTrade as supabaseUpsertTrade,
+  removeTrade as supabaseRemoveTrade,
+  fetchSettings as supabaseFetchSettings,
+  upsertSettings as supabaseUpsertSettings,
+  isConfigured,
+} from "./lib/supabase";
 import NavSidebar from "./components/layout/NavSidebar";
 import Header from "./components/layout/Header";
 import TopBar from "./components/layout/TopBar";
 import DataSourceToggle from "./components/scanner/DataSourceToggle";
 import ScannerTable from "./components/scanner/ScannerTable";
+import BuyRecommendations from "./components/radar/BuyRecommendations";
 import SmartMoneyRadar from "./components/radar/SmartMoneyRadar";
 import AccumulationRadar from "./components/radar/AccumulationRadar";
 import PaperPortfolio from "./components/paper/PaperPortfolio";
+import SignalLogViewer from "./components/analytics/SignalLog";
 import SignalAnalytics from "./components/analytics/SignalAnalytics";
 import BacktestPanel from "./components/analytics/BacktestPanel";
+import TokenDetailModal from "./components/scanner/TokenDetailModal";
+import WatchlistPanel from "./components/scanner/WatchlistPanel";
 import SettingsDrawer from "./components/settings/SettingsDrawer";
+import { fetchWatchlist, addToWatchlist, removeFromWatchlist } from "./lib/watchlist";
+import { fetchSignalLog, addSignalLog } from "./lib/signalLog";
+import type { SignalLogEntry } from "./lib/signalLog";
+import { sendTelegramAlert, formatTradeAlert } from "./lib/telegram";
+import { useWebSocket } from "./hooks/useWebSocket";
 
 const LS_COLLAPSED = "ascan_nav_collapsed";
 const LS_TRADES = "ascan_paper_trades";
@@ -47,6 +64,14 @@ export default function App() {
   const isMock = useSyncExternalStore(subscribe, scanner.getIsMock);
   const activeSource = useSyncExternalStore(subscribe, scanner.getActiveSource);
 
+  // Real-time price updates via Binance WebSocket
+  const { connected: wsConnected } = useWebSocket({
+    symbols: tokens.map((t) => t.symbol),
+    onTickers: (tickers) => {
+      scanner.patchPrices(tickers);
+    },
+  });
+
   const [trades, setTrades] = useState<PaperTrade[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(LS_TRADES) ?? "[]");
@@ -63,6 +88,52 @@ export default function App() {
     }
   });
 
+  const [toast, setToast] = useState<{ message: string } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const [selectedToken, setSelectedToken] = useState<string | null>(null);
+
+  const [watchlist, setWatchlist] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("ascan_watchlist") ?? "[]"); }
+    catch { return []; }
+  });
+
+  const [signalLog, setSignalLog] = useState<SignalLogEntry[]>(() => {
+    try { return JSON.parse(localStorage.getItem("ascan_signal_log") ?? "[]"); }
+    catch { return []; }
+  });
+
+  const [dbReady, setDbReady] = useState(false);
+  const initialLoadRef = useRef(false);
+
+  // Load from Supabase on mount, fall back to localStorage
+  useEffect(() => {
+    if (initialLoadRef.current) return;
+    initialLoadRef.current = true;
+
+    if (!isConfigured()) {
+      setDbReady(true);
+      return;
+    }
+
+    Promise.all([
+      supabaseFetchTrades().then((data) => {
+        if (data.length > 0) setTrades(data);
+      }),
+      supabaseFetchSettings().then((s) => {
+        if (s) setSettings(s);
+      }),
+      fetchWatchlist().then((data) => {
+        if (data.length > 0) setWatchlist(data);
+      }),
+      fetchSignalLog().then((data) => {
+        if (data.length > 0) setSignalLog(data);
+      }),
+    ]).catch(() => {
+      // Supabase unreachable — keep localStorage values
+    }).finally(() => setDbReady(true));
+  }, []);
+
   function handleSourceChange(source: DataSource) {
     saveSourcePreference(source);
     scanner.setSource(source);
@@ -78,7 +149,10 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem(LS_SETTINGS, JSON.stringify(settings));
-  }, [settings]);
+    if (dbReady && isConfigured()) {
+      supabaseUpsertSettings(settings).catch((e) => console.warn("Supabase settings save failed", e));
+    }
+  }, [settings, dbReady]);
 
   const priceMap = new Map<string, number>();
   const scoreMap = new Map<string, { alpha: number; smartMoney: number; swing: number; accumulation: number; consensus: number }>();
@@ -93,7 +167,7 @@ export default function App() {
     });
   }
 
-  function handlePaperBuy(symbol: string) {
+  async function handlePaperBuy(symbol: string) {
     const token = tokens.find((t) => t.symbol === symbol);
     if (!token) return;
     const trade: PaperTrade = {
@@ -108,10 +182,47 @@ export default function App() {
       consensusSnapshot: token.consensus,
     };
     setTrades((prev) => [...prev, trade]);
+    if (isConfigured()) {
+      try { await supabaseUpsertTrade(trade); } catch (e) { console.warn("Supabase save failed", e); }
+    }
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message: `Bought ${symbol.replace("USDT", "")} at $${trade.entryPrice.toFixed(4)}` });
+    toastTimer.current = setTimeout(() => setToast(null), 2500);
+    // Log signal
+    const entry = await addSignalLog(symbol, "BUY", `Entry $${trade.entryPrice.toFixed(4)} · Consensus ${token.consensus}`);
+    setSignalLog((prev) => [{ symbol, event: "BUY", details: `Entry $${trade.entryPrice.toFixed(4)} · Consensus ${token.consensus}`, timestamp: Date.now(), ...(entry ? { id: Date.now() } : {}) }, ...prev]);
+    // Telegram alert
+    if (settings.telegramBotToken && settings.telegramChatId) {
+      const msg = formatTradeAlert("BUY", symbol, trade.entryPrice, `Consensus ${token.consensus}`);
+      sendTelegramAlert(settings.telegramBotToken, settings.telegramChatId, msg).catch(() => {});
+    }
   }
 
-  function removeTrade(id: string) {
+  async function removeTrade(id: string) {
+    const removed = trades.find((t) => t.id === id);
     setTrades((prev) => prev.filter((t) => t.id !== id));
+    if (isConfigured()) {
+      try { await supabaseRemoveTrade(id); } catch (e) { console.warn("Supabase remove failed", e); }
+    }
+    if (removed) {
+      await addSignalLog(removed.symbol, "REMOVE", `Manual removal · Entry was $${removed.entryPrice.toFixed(4)}`);
+      setSignalLog((prev) => [{ symbol: removed.symbol, event: "REMOVE", details: `Manual removal · Entry was $${removed.entryPrice.toFixed(4)}`, timestamp: Date.now() }, ...prev]);
+      if (settings.telegramBotToken && settings.telegramChatId) {
+        const msg = formatTradeAlert("REMOVE", removed.symbol, removed.entryPrice, "Position manually closed");
+        sendTelegramAlert(settings.telegramBotToken, settings.telegramChatId, msg).catch(() => {});
+      }
+    }
+  }
+
+  async function toggleWatchlist(symbol: string) {
+    const inList = watchlist.includes(symbol);
+    if (inList) {
+      setWatchlist((prev) => prev.filter((s) => s !== symbol));
+      await removeFromWatchlist(symbol);
+    } else {
+      setWatchlist((prev) => [...prev, symbol]);
+      await addToWatchlist(symbol);
+    }
   }
 
   const totalVol = tokens.reduce((sum, t) => sum + t.volume24h, 0);
@@ -129,6 +240,8 @@ export default function App() {
         collapsed={collapsed}
         onViewChange={setView}
         onToggleCollapse={() => setCollapsed(!collapsed)}
+        openTradeCount={trades.length}
+        watchlistCount={watchlist.length}
       />
 
       <div className="flex flex-col flex-1 min-w-0">
@@ -147,6 +260,7 @@ export default function App() {
 
         <TopBar
           stats={[
+            { label: "Live", value: wsConnected ? "●" : "○", valueClass: wsConnected ? "text-signal-green" : "text-text-muted" },
             { label: "Source", value: `${sourceLabel[activeSource] ?? "--"}${isMock ? " (sim)" : ""}` },
             { label: "Tokens", value: String(tokens.length) },
             { label: "24h Vol", value: `$${(totalVol / 1e9).toFixed(2)}B` },
@@ -187,7 +301,27 @@ export default function App() {
             <ScannerTable
               tokens={tokens}
               loading={loading}
+              watchlist={watchlist}
               onBuy={handlePaperBuy}
+              onToggleWatchlist={toggleWatchlist}
+              onTokenClick={setSelectedToken}
+            />
+          )}
+          {view === "buy-recs" && (
+            <BuyRecommendations
+              tokens={tokens}
+              loading={loading}
+              onBuy={handlePaperBuy}
+              onTokenClick={setSelectedToken}
+            />
+          )}
+          {view === "watchlist" && (
+            <WatchlistPanel
+              tokens={tokens}
+              watchlist={watchlist}
+              loading={loading}
+              onBuy={handlePaperBuy}
+              onRemoveFromWatchlist={(s) => toggleWatchlist(s)}
             />
           )}
           {view === "smart-money" && <SmartMoneyRadar tokens={tokens} loading={loading} />}
@@ -204,6 +338,9 @@ export default function App() {
           {view === "analytics" && (
             <SignalAnalytics trades={trades} prices={priceMap} />
           )}
+          {view === "signal-log" && (
+            <SignalLogViewer entries={signalLog} />
+          )}
           {view === "backtest" && (
             <BacktestPanel tokens={tokens} />
           )}
@@ -212,6 +349,26 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {selectedToken && (() => {
+        const token = tokens.find((t) => t.symbol === selectedToken);
+        if (!token) return null;
+        return (
+          <TokenDetailModal
+            token={token}
+            onClose={() => setSelectedToken(null)}
+          />
+        );
+      })()}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
+          <div className="flex items-center gap-2 rounded-lg bg-signal-greenBg border border-signal-green/40 px-4 py-3 shadow-lg text-sm text-signal-green font-semibold">
+            <span>+</span>
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

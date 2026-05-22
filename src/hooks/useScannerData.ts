@@ -79,6 +79,21 @@ export function useScannerData() {
     refresh();
   }
 
+  function patchPrices(updates: Map<string, { price: number; priceChange24h: number; volume24h: number; high24h: number; low24h: number }>) {
+    const current = tokensRef.current;
+    let changed = false;
+    const next = current.map((t) => {
+      const u = updates.get(t.symbol);
+      if (!u) return t;
+      changed = true;
+      return { ...t, ...u };
+    });
+    if (changed) {
+      tokensRef.current = next;
+      notify();
+    }
+  }
+
   useEffect(() => {
     refresh();
     const interval = setInterval(refresh, REFRESH_MS);
@@ -96,5 +111,6 @@ export function useScannerData() {
     getSource,
     getActiveSource,
     setSource,
+    patchPrices,
   };
 }

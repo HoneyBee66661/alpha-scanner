@@ -1,5 +1,5 @@
 interface StatProps {
-  stats: { label: string; value: string }[];
+  stats: { label: string; value: string; valueClass?: string }[];
 }
 
 export default function TopBar({ stats }: StatProps) {
@@ -8,7 +8,7 @@ export default function TopBar({ stats }: StatProps) {
       {stats.map((s) => (
         <div key={s.label} className="flex items-center gap-1.5">
           <span className="text-text-muted">{s.label}:</span>
-          <span className="text-text-primary font-semibold tabular-nums">
+          <span className={`text-text-primary font-semibold tabular-nums ${s.valueClass ?? ""}`}>
             {s.value}
           </span>
         </div>
