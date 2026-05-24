@@ -4,22 +4,10 @@ import type { PaperTrade, UserSettings } from "../types";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? "";
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
 
-let _client: ReturnType<typeof createClient> | null = null;
-
-function getClient() {
-  if (!_client) {
-    _client = createClient(supabaseUrl || "http://localhost", supabaseKey || "anon-key");
-  }
-  return _client;
-}
-
-export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
-  get(_, prop) {
-    const client = getClient();
-    const val = (client as any)[prop];
-    return typeof val === "function" ? val.bind(client) : val;
-  },
-});
+export const supabase = createClient(
+  supabaseUrl || "http://localhost",
+  supabaseKey || "anon-key"
+);
 
 export function isConfigured(): boolean {
   return supabaseUrl.length > 0 && supabaseKey.length > 0;
@@ -34,9 +22,11 @@ function toDbTrade(t: PaperTrade) {
     entry_price: t.entryPrice,
     quantity: t.quantity,
     timestamp: t.timestamp,
-    alpha_snapshot: t.alphaSnapshot,
+    alpha_snapshot: t.momentumSnapshot,
     smart_money_snapshot: t.smartMoneySnapshot,
-    swing_snapshot: t.swingSnapshot,
+    swing_snapshot: t.structureSnapshot,
+    accumulation_snapshot: t.accumulationSnapshot,
+    sentiment_snapshot: t.sentimentSnapshot,
     consensus_snapshot: t.consensusSnapshot,
   };
 }
@@ -48,10 +38,12 @@ function fromDbTrade(row: Record<string, unknown>): PaperTrade {
     entryPrice: Number(row.entry_price),
     quantity: Number(row.quantity),
     timestamp: Number(row.timestamp),
-    alphaSnapshot: Number(row.alpha_snapshot),
-    smartMoneySnapshot: Number(row.smart_money_snapshot),
-    swingSnapshot: Number(row.swing_snapshot),
-    consensusSnapshot: Number(row.consensus_snapshot),
+    momentumSnapshot: Number(row.alpha_snapshot ?? 0),
+    smartMoneySnapshot: Number(row.smart_money_snapshot ?? 0),
+    structureSnapshot: Number(row.swing_snapshot ?? 0),
+    accumulationSnapshot: Number(row.accumulation_snapshot ?? 0),
+    sentimentSnapshot: Number(row.sentiment_snapshot ?? 0),
+    consensusSnapshot: Number(row.consensus_snapshot ?? 0),
   };
 }
 
@@ -63,6 +55,10 @@ function toDbSettings(s: UserSettings) {
     tax_rate: s.taxRate,
     telegram_bot_token: s.telegramBotToken,
     telegram_chat_id: s.telegramChatId,
+    auto_trade_enabled: s.autoTradeEnabled,
+    auto_trade_max_positions: s.autoTradeMaxPositions,
+    auto_trade_budget_per_trade: s.autoTradeBudgetPerTrade,
+    paper_balance: s.paperBalance,
   };
 }
 
@@ -73,6 +69,10 @@ function fromDbSettings(row: Record<string, unknown>): UserSettings {
     taxRate: Number(row.tax_rate),
     telegramBotToken: String(row.telegram_bot_token ?? ""),
     telegramChatId: String(row.telegram_chat_id ?? ""),
+    autoTradeEnabled: Boolean(row.auto_trade_enabled ?? false),
+    autoTradeMaxPositions: Number(row.auto_trade_max_positions ?? 5),
+    autoTradeBudgetPerTrade: Number(row.auto_trade_budget_per_trade ?? 100),
+    paperBalance: Number(row.paper_balance ?? 10000),
   };
 }
 

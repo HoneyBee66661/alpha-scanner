@@ -1,5 +1,22 @@
 import type { TokenRow, OHLCV, SignalTag } from "../types";
 
+function clampM(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function generateMockTags(scores: { momentum: number; smartMoney: number; structure: number; accumulation: number; sentiment: number; mmFootprint: number; consensus: number }, priceChange24h: number, _i: number): SignalTag[] {
+  const tags: SignalTag[] = [];
+  if (scores.smartMoney >= 70) tags.push("Smart Money");
+  if (scores.accumulation >= 65) tags.push("Accumulation");
+  if (scores.momentum >= 75) tags.push("Breakout");
+  if (scores.momentum >= 60 && scores.smartMoney < 70 && scores.accumulation < 65) tags.push("Early Momentum");
+  if (scores.structure >= 65) tags.push("Trending");
+  if (scores.momentum >= 90 || priceChange24h > 30) tags.push("Overheated");
+  if (priceChange24h > 40 || scores.consensus < 25) tags.push("High Risk");
+  if (tags.length === 0) tags.push("Early Momentum");
+  return tags;
+}
+
 const TOP_TOKENS: { base: string; price: number; volScale: number; trend: number }[] = [
   { base: "BTC", price: 87650.32, volScale: 1.0, trend: 0.6 },
   { base: "ETH", price: 4020.18, volScale: 0.85, trend: 0.55 },
@@ -31,6 +48,77 @@ const TOP_TOKENS: { base: string; price: number; volScale: number; trend: number
   { base: "AGIX", price: 0.89, volScale: 0.2, trend: 0.5 },
   { base: "OCEAN", price: 1.12, volScale: 0.15, trend: 0.45 },
   { base: "LDO", price: 2.67, volScale: 0.2, trend: 0.4 },
+  { base: "AAVE", price: 145.32, volScale: 0.3, trend: 0.55 },
+  { base: "FTM", price: 1.14, volScale: 0.25, trend: 0.5 },
+  { base: "GRT", price: 0.31, volScale: 0.2, trend: 0.4 },
+  { base: "ALGO", price: 0.28, volScale: 0.2, trend: 0.35 },
+  { base: "SAND", price: 0.56, volScale: 0.2, trend: 0.3 },
+  { base: "AXS", price: 9.87, volScale: 0.2, trend: 0.45 },
+  { base: "THETA", price: 2.34, volScale: 0.2, trend: 0.5 },
+  { base: "FIL", price: 7.23, volScale: 0.25, trend: 0.4 },
+  { base: "ICP", price: 14.56, volScale: 0.25, trend: 0.55 },
+  { base: "VET", price: 0.045, volScale: 0.2, trend: 0.35 },
+  { base: "EGLD", price: 45.67, volScale: 0.15, trend: 0.4 },
+  { base: "MANA", price: 0.49, volScale: 0.2, trend: 0.35 },
+  { base: "EOS", price: 1.23, volScale: 0.2, trend: 0.3 },
+  { base: "FLOW", price: 0.78, volScale: 0.2, trend: 0.45 },
+  { base: "XTZ", price: 1.56, volScale: 0.15, trend: 0.35 },
+  { base: "CRV", price: 0.67, volScale: 0.2, trend: 0.4 },
+  { base: "GALA", price: 0.042, volScale: 0.25, trend: 0.45 },
+  { base: "KLAY", price: 0.23, volScale: 0.15, trend: 0.3 },
+  { base: "CHZ", price: 0.12, volScale: 0.2, trend: 0.4 },
+  { base: "SNX", price: 3.45, volScale: 0.15, trend: 0.35 },
+  { base: "COMP", price: 78.34, volScale: 0.15, trend: 0.4 },
+  { base: "MKR", price: 2450.12, volScale: 0.25, trend: 0.5 },
+  { base: "ZIL", price: 0.034, volScale: 0.15, trend: 0.3 },
+  { base: "ENJ", price: 0.38, volScale: 0.15, trend: 0.35 },
+  { base: "BAT", price: 0.28, volScale: 0.1, trend: 0.3 },
+  { base: "LRC", price: 0.31, volScale: 0.15, trend: 0.35 },
+  { base: "HBAR", price: 0.12, volScale: 0.3, trend: 0.55 },
+  { base: "STX", price: 2.45, volScale: 0.25, trend: 0.5 },
+  { base: "IMX", price: 1.89, volScale: 0.25, trend: 0.5 },
+  { base: "MINA", price: 0.78, volScale: 0.2, trend: 0.45 },
+  { base: "KAVA", price: 0.92, volScale: 0.15, trend: 0.4 },
+  { base: "FLR", price: 0.034, volScale: 0.15, trend: 0.35 },
+  { base: "CFX", price: 0.21, volScale: 0.2, trend: 0.45 },
+  { base: "MASK", price: 4.56, volScale: 0.15, trend: 0.5 },
+  { base: "DYDX", price: 2.78, volScale: 0.2, trend: 0.45 },
+  { base: "ILV", price: 89.34, volScale: 0.1, trend: 0.4 },
+  { base: "GMT", price: 0.28, volScale: 0.2, trend: 0.35 },
+  { base: "ENS", price: 18.92, volScale: 0.2, trend: 0.5 },
+  { base: "GLM", price: 0.45, volScale: 0.15, trend: 0.4 },
+  { base: "ROSE", price: 0.09, volScale: 0.15, trend: 0.45 },
+  { base: "ONE", price: 0.023, volScale: 0.15, trend: 0.3 },
+  { base: "CELO", price: 0.78, volScale: 0.1, trend: 0.35 },
+  { base: "ANKR", price: 0.041, volScale: 0.15, trend: 0.4 },
+  { base: "SKL", price: 0.067, volScale: 0.1, trend: 0.35 },
+  { base: "LPT", price: 14.23, volScale: 0.15, trend: 0.45 },
+  { base: "BAND", price: 2.12, volScale: 0.1, trend: 0.35 },
+  { base: "STORJ", price: 0.56, volScale: 0.15, trend: 0.4 },
+  { base: "ZRX", price: 0.45, volScale: 0.15, trend: 0.35 },
+  { base: "KNC", price: 0.89, volScale: 0.1, trend: 0.3 },
+  { base: "SFP", price: 0.78, volScale: 0.1, trend: 0.35 },
+  { base: "TRX", price: 0.23, volScale: 0.45, trend: 0.5 },
+  { base: "SHIB", price: 0.0000234, volScale: 0.35, trend: 0.4 },
+  { base: "TON", price: 6.78, volScale: 0.35, trend: 0.55 },
+  { base: "ORDI", price: 38.92, volScale: 0.25, trend: 0.45 },
+  { base: "1000SATS", price: 0.00021, volScale: 0.2, trend: 0.4 },
+  { base: "JUP", price: 1.12, volScale: 0.3, trend: 0.55 },
+  { base: "PYTH", price: 0.41, volScale: 0.25, trend: 0.45 },
+  { base: "JTO", price: 3.45, volScale: 0.25, trend: 0.5 },
+  { base: "STRK", price: 0.56, volScale: 0.2, trend: 0.35 },
+  { base: "WLD", price: 3.21, volScale: 0.3, trend: 0.55 },
+  { base: "MEME", price: 0.019, volScale: 0.15, trend: 0.4 },
+  { base: "ACE", price: 3.89, volScale: 0.15, trend: 0.4 },
+  { base: "NFP", price: 0.34, volScale: 0.15, trend: 0.35 },
+  { base: "AI", price: 1.23, volScale: 0.2, trend: 0.55 },
+  { base: "XAI", price: 0.56, volScale: 0.2, trend: 0.45 },
+  { base: "PIXEL", price: 0.18, volScale: 0.2, trend: 0.4 },
+  { base: "PORTAL", price: 0.45, volScale: 0.15, trend: 0.35 },
+  { base: "AEVO", price: 0.67, volScale: 0.2, trend: 0.4 },
+  { base: "ETHFI", price: 3.45, volScale: 0.2, trend: 0.45 },
+  { base: "ENA", price: 1.23, volScale: 0.3, trend: 0.55 },
+  { base: "SAGA", price: 2.34, volScale: 0.2, trend: 0.45 },
 ];
 
 function seededRandom(seed: number): () => number {
@@ -62,57 +150,31 @@ function generateOHLCV(
   return candles;
 }
 
-const tagOptions: SignalTag[][] = [
-  ["Smart Money", "Breakout"],
-  ["Accumulation", "Trending"],
-  ["Early Momentum"],
-  ["Smart Money", "Accumulation", "Breakout"],
-  ["Trending"],
-  ["Breakout"],
-  ["Early Momentum", "Trending"],
-  ["Overheated", "High Risk"],
-  ["Smart Money"],
-  ["Accumulation"],
-];
-
 export function generateMockTokens(): TokenRow[] {
   const rand = seededRandom(Date.now());
-  const now = Date.now();
 
   return TOP_TOKENS.map((t, i) => {
     const price = t.price * (1 + (rand() - 0.5) * 0.04);
     const ohlcv = generateOHLCV(price, 50, t.trend, rand);
-    const closes = ohlcv.map((c) => c.close);
     const volume24h = 500_000_000 * t.volScale * (0.5 + rand());
-    const avgVolume = volume24h * (0.3 + rand() * 0.5);
     const priceChange24h = (rand() - 0.45) * 12 * (0.5 + t.trend);
     const tradeCount = Math.floor(50_000 * t.volScale * (0.5 + rand()));
 
-    const alpha = Math.round(
-      Math.min(100, Math.max(0, 35 + rand() * 50 + t.trend * 20 + priceChange24h * 2))
-    );
-    const smartMoney = Math.round(
-      Math.min(100, Math.max(0, 30 + rand() * 55 + t.trend * 20 - Math.abs(priceChange24h)))
-    );
-    const swing = Math.round(
-      Math.min(100, Math.max(0, 25 + rand() * 55 + t.trend * 25))
-    );
-    const accumulation = Math.round(
-      Math.min(100, Math.max(0, 20 + rand() * 60 + t.trend * 15))
-    );
-    const consensus = Math.round(
-      smartMoney * 0.35 + swing * 0.25 + alpha * 0.2 + accumulation * 0.2
-    );
+    // Realistic mock scores with differentiated distributions
+    const baseNoise = () => rand() * 40 - 20; // -20 to +20
+    const momentum = clampM(35 + t.trend * 25 + priceChange24h * 1.5 + baseNoise());
+    const smartMoney = clampM(30 + t.trend * 20 + t.volScale * 20 + baseNoise());
+    const structure = clampM(30 + t.trend * 25 + baseNoise());
+    const accumulation = clampM(25 + t.trend * 20 + baseNoise());
+    const sentiment = clampM(40 + priceChange24h * 0.5 + baseNoise());
+    const mmFootprint = clampM(30 + t.volScale * 15 + baseNoise() * 0.7);
+    const consensus = clampM(Math.round(
+      momentum * 0.25 + smartMoney * 0.25 + structure * 0.20 +
+      accumulation * 0.15 + sentiment * 0.10 + mmFootprint * 0.05
+    ));
 
-    const tags: SignalTag[] = [];
-    if (smartMoney >= 75) tags.push("Smart Money");
-    if (accumulation >= 70) tags.push("Accumulation");
-    if (alpha >= 80) tags.push("Breakout");
-    if (alpha >= 65 && smartMoney < 75 && accumulation < 70) tags.push("Early Momentum");
-    if (swing >= 70) tags.push("Trending");
-    if (alpha >= 95) tags.push("Overheated");
-    if (priceChange24h > 40 || consensus < 30) tags.push("High Risk");
-    if (tags.length === 0) tags.push(tagOptions[i % tagOptions.length][0]);
+    const scores = { momentum, smartMoney, structure, accumulation, sentiment, mmFootprint, consensus };
+    const tags = generateMockTags(scores, priceChange24h, i);
 
     return {
       symbol: `${t.base}USDT`,
@@ -127,11 +189,7 @@ export function generateMockTokens(): TokenRow[] {
       fundingRate: (rand() - 0.5) * 0.002,
       takerBuyVolume: volume24h * (0.4 + rand() * 0.2),
       takerSellVolume: volume24h * (0.4 + rand() * 0.2),
-      alpha,
-      smartMoney,
-      swing,
-      accumulation,
-      consensus,
+      ...scores,
       tags,
     };
   });

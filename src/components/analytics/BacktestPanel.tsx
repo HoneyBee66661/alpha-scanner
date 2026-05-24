@@ -8,9 +8,9 @@ interface Props {
 }
 
 const MODEL_LABELS: Record<ScoreModel, string> = {
-  alpha: "Alpha",
+  momentum: "Momentum",
   smartMoney: "Smart Money",
-  swing: "Swing",
+  structure: "Structure",
   accumulation: "Accumulation",
   consensus: "Consensus",
 };
@@ -60,7 +60,7 @@ export default function BacktestPanel({ tokens }: Props) {
             <span className="text-heading text-signal-blue tabular-nums">
               {MODEL_LABELS[results.find((r) =>
                 r.thresholdResults.some((t) => t === bestOverall)
-              )?.model ?? "alpha"]}
+              )?.model ?? "momentum"]}
             </span>
           </div>
           <div className="card flex flex-col gap-1 min-w-[140px]">

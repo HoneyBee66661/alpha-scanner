@@ -5,9 +5,13 @@ interface Props {
   lastRefresh: number | null;
   onRefresh: () => void;
   children?: ReactNode;
+  isGuest?: boolean;
+  userEmail?: string;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
 }
 
-export default function Header({ loading, lastRefresh, onRefresh, children }: Props) {
+export default function Header({ loading, lastRefresh, onRefresh, children, isGuest, userEmail, onSignIn, onSignOut }: Props) {
   const [timeAgo, setTimeAgo] = useState("--");
 
   useEffect(() => {
@@ -46,6 +50,21 @@ export default function Header({ loading, lastRefresh, onRefresh, children }: Pr
           <span>updated {timeAgo}</span>
         )}
       </div>
+
+      {/* Auth status */}
+      {isGuest && onSignIn && (
+        <button onClick={onSignIn} className="btn-ghost h-8 px-2 text-text-muted hover:text-signal-blue text-label">
+          Sign In
+        </button>
+      )}
+      {!isGuest && userEmail && (
+        <span className="text-label text-text-muted">{userEmail}</span>
+      )}
+      {onSignOut && (
+        <button onClick={onSignOut} className="btn-ghost h-8 px-2 text-text-muted hover:text-signal-red text-label">
+          Sign Out
+        </button>
+      )}
 
       <button onClick={onRefresh} className="btn-ghost h-8 px-3" disabled={loading}>
         {loading ? "..." : "↻ Refresh"}

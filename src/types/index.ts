@@ -26,10 +26,12 @@ export interface FuturesData {
 }
 
 export interface Scores {
-  alpha: number;
+  momentum: number;
   smartMoney: number;
-  swing: number;
+  structure: number;
   accumulation: number;
+  sentiment: number;
+  mmFootprint: number;
   consensus: number;
 }
 
@@ -52,9 +54,11 @@ export interface PaperTrade {
   entryPrice: number;
   quantity: number;
   timestamp: number;
-  alphaSnapshot: number;
+  momentumSnapshot: number;
   smartMoneySnapshot: number;
-  swingSnapshot: number;
+  structureSnapshot: number;
+  accumulationSnapshot: number;
+  sentimentSnapshot: number;
   consensusSnapshot: number;
 }
 
@@ -76,22 +80,46 @@ export interface UserSettings {
   taxRate: number;
   telegramBotToken: string;
   telegramChatId: string;
+  autoTradeEnabled: boolean;
+  autoTradeMaxPositions: number;
+  autoTradeBudgetPerTrade: number;
+  paperBalance: number;
+}
+
+export interface ClosedTrade {
+  id: string;
+  symbol: string;
+  entryPrice: number;
+  exitPrice: number;
+  quantity: number;
+  entryTimestamp: number;
+  exitTimestamp: number;
+  netPnl: number;
+  netReturnPct: number;
+  momentumSnapshot: number;
+  smartMoneySnapshot: number;
+  structureSnapshot: number;
+  accumulationSnapshot: number;
+  sentimentSnapshot: number;
+  consensusSnapshot: number;
+  exitReason: "MANUAL" | "AUTO_TP" | "AUTO_SL" | "AUTO_DECAY" | "AUTO_TIME" | "AUTO_SELL";
 }
 
 export type SortColumn =
   | "symbol"
   | "price"
-  | "alpha"
+  | "momentum"
   | "smartMoney"
-  | "swing"
+  | "structure"
   | "accumulation"
+  | "sentiment"
   | "consensus"
   | "volume24h"
   | "priceChange24h";
 
 export type SortDirection = "asc" | "desc";
 
-export type ScannerView = "scanner" | "buy-recs" | "watchlist" | "smart-money" | "accumulation" | "portfolio" | "analytics" | "backtest" | "signal-log" | "settings";
+export type ScannerView = "scanner" | "buy-recs" | "watchlist" | "smart-money" | "accumulation" | "portfolio" | "analytics" | "backtest" | "signal-log" | "settings" | "profile";
 
 export const STABLECOINS = new Set([
   "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDP", "USDD", "GUSD", "LUSD", "FRAX",
