@@ -28,31 +28,39 @@ interface CGMarket {
   sparkline_in_7d?: { price: number[] };
 }
 
-function sparklineToOHLCV(prices: number[]): OHLCV[] {
+function sparklineToOHLCV(prices: number[], dailyVolume: number): OHLCV[] {
   if (prices.length < 2) {
     const p = prices[0] ?? 0;
-    return [{ open: p, high: p, low: p, close: p, volume: 0 }];
+    return [{ open: p, high: p, low: p, close: p, volume: dailyVolume }];
   }
   const candles: OHLCV[] = [];
+  const volPerCandle = dailyVolume / Math.max(prices.length - 1, 1);
   for (let i = 0; i < prices.length - 1; i++) {
     const open = prices[i];
     const close = prices[i + 1];
     const high = Math.max(open, close);
     const low = Math.min(open, close);
-    candles.push({ open, high, low, close, volume: 0 });
+    candles.push({ open, high, low, close, volume: volPerCandle });
   }
   return candles.slice(-50);
 }
 
 export async function fetchCoinGeckoTokens(): Promise<TokenRow[]> {
-  const res = await fetch(
-    `${CG_BASE}/coins/markets?vs_currency=usd&order=volume_desc&per_page=30&page=1&sparkline=true&price_change_percentage=24h`
-  );
-  if (!res.ok) {
-    throw new Error(`CoinGecko API failed: ${res.status}`);
-  }
+  // Fetch top 100 by volume across 2 pages (CoinGecko caps at 250 per page but 100 is safer)
+  const [page1, page2] = await Promise.all([
+    fetch(
+      `${CG_BASE}/coins/markets?vs_currency=usd&order=volume_desc&per_page=100&page=1&sparkline=true&price_change_percentage=24h`
+    ),
+    fetch(
+      `${CG_BASE}/coins/markets?vs_currency=usd&order=volume_desc&per_page=100&page=2&sparkline=true&price_change_percentage=24h`
+    ),
+  ]);
 
-  const data: CGMarket[] = await res.json();
+  const data1: CGMarket[] = page1.ok ? await page1.json() : [];
+  const data2: CGMarket[] = page2.ok ? await page2.json() : [];
+  const data = [...data1, ...data2];
+
+  if (!data.length) throw new Error("CoinGecko API failed");
 
   const rows: TokenRow[] = data
     .filter((c) => {
@@ -68,35 +76,40 @@ export async function fetchCoinGeckoTokens(): Promise<TokenRow[]> {
       const priceChange24h = c.price_change_percentage_24h ?? 0;
       const high24h = c.high_24h ?? price;
       const low24h = c.low_24h ?? price;
+      const distVolume = volume24h / 24;
       const ohlcv = c.sparkline_in_7d?.price
-        ? sparklineToOHLCV(c.sparkline_in_7d.price)
+        ? sparklineToOHLCV(c.sparkline_in_7d.price, distVolume)
         : [
-            { open: price, high: high24h, low: low24h, close: price, volume: volume24h },
+            { open: price, high: high24h, low: low24h, close: price, volume: distVolume },
           ];
 
       const closes = ohlcv.map((k) => k.close);
       const avgVolume = ohlcv.length > 1
-        ? ohlcv.slice(0, -1).reduce((s, k) => s + (k.volume || volume24h / ohlcv.length), 0) /
-          Math.max(ohlcv.length - 1, 1)
-        : volume24h;
-      const tradeCount = Math.floor(volume24h / price / 10);
-      const prevVolume = ohlcv.length >= 2 ? ohlcv[ohlcv.length - 2].volume || avgVolume : avgVolume;
+        ? ohlcv.slice(0, -1).reduce((s, k) => s + k.volume, 0) / Math.max(ohlcv.length - 1, 1)
+        : distVolume;
+      const tradeCount = Math.floor(volume24h / Math.max(price, 0.0001) / 5);
+      const prevVolume = ohlcv.length >= 2 ? ohlcv[ohlcv.length - 2].volume : avgVolume;
 
       const alpha = computeAlphaScore(volume24h, avgVolume, tradeCount, tradeCount, prevVolume, priceChange24h);
       const trend = computeTrendStrength(price, closes);
-      const buyPressure = computeBuyPressure(0, volume24h);
+      // CoinGecko: estimate buy pressure from volume/price ratio vs avg
+      const buyPressure = computeBuyPressure(
+        volume24h > avgVolume ? volume24h - avgVolume : 0,
+        volume24h
+      );
       const hh = computeHigherHigh(price, closes.length >= 2 ? closes[closes.length - 2] : price);
       const fs = computeFundingStability(0);
 
       const accumulation = computeAccumulationScore(
         avgVolume > 0 ? ((volume24h - avgVolume) / avgVolume) * 100 : 0,
         priceChange24h,
-        false,
+        volume24h > avgVolume,
         true
       );
 
-      const smartMoney = computeSmartMoneyScore(alpha, volume24h / Math.max(avgVolume, 1), buyPressure, 1, accumulation);
-      const swing = computeSwingScore(trend, volume24h / Math.max(avgVolume, 1), alpha * 0.5, hh, fs);
+      const rvol = volume24h / Math.max(avgVolume, 1);
+      const smartMoney = computeSmartMoneyScore(alpha, rvol, buyPressure, Math.min(rvol, 3), accumulation);
+      const swing = computeSwingScore(trend, rvol, alpha * 0.5, hh, fs);
       const scores = { alpha, smartMoney, swing, accumulation, consensus: 0 };
       const consensus = computeConsensusScore(scores);
       scores.consensus = consensus;
@@ -112,8 +125,8 @@ export async function fetchCoinGeckoTokens(): Promise<TokenRow[]> {
         ohlcv,
         openInterest: c.market_cap * 0.02,
         fundingRate: 0,
-        takerBuyVolume: 0,
-        takerSellVolume: 0,
+        takerBuyVolume: volume24h * 0.55,
+        takerSellVolume: volume24h * 0.45,
         ...scores,
         tags: generateTags(scores, priceChange24h),
       } as TokenRow;
