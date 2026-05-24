@@ -102,9 +102,9 @@ export default function TokenDetailModal({ token, onClose }: Props) {
   }, []);
 
   const scoreBars = [
-    { label: "Alpha", value: token.alpha, color: "bg-signal-yellow" },
+    { label: "Momentum", value: token.momentum, color: "bg-signal-yellow" },
     { label: "Smart Money", value: token.smartMoney, color: "bg-signal-blue" },
-    { label: "Swing", value: token.swing, color: "bg-signal-orange" },
+    { label: "Structure", value: token.structure, color: "bg-signal-orange" },
     { label: "Accumulation", value: token.accumulation, color: "bg-purple-500" },
     { label: "Consensus", value: token.consensus, color: "bg-signal-green" },
   ];

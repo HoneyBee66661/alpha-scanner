@@ -43,7 +43,7 @@ export default function BuyRecommendations({ tokens, loading, onBuy, onTokenClic
                 <th className="px-3 py-2 text-left">Symbol</th>
                 <th className="px-3 py-2 text-right">Price</th>
                 <th className="px-3 py-2 text-right">Cons</th>
-                <th className="px-3 py-2 text-right">Alpha</th>
+                <th className="px-3 py-2 text-right">Momentum</th>
                 <th className="px-3 py-2 text-right">Smart $</th>
                 <th className="px-3 py-2 text-right">Accum</th>
                 <th className="px-3 py-2 text-right">24h %</th>
@@ -67,27 +67,27 @@ export default function BuyRecommendations({ tokens, loading, onBuy, onTokenClic
                     {rec.symbol}
                     <span className="text-text-muted font-normal">/USDT</span>
                   </td>
-                  <td className="px-3 py-1 text-text-primary tabular-nums">
+                  <td className="px-3 py-1 text-text-primary tabular-nums text-right">
                     {rec.price < 0.01 ? rec.price.toFixed(6) : rec.price.toFixed(4)}
                   </td>
-                  <td className="px-3 py-1 tabular-nums">
+                  <td className="px-3 py-1 tabular-nums text-right">
                     <ConsVal v={findScore(tokens, rec.symbol, "consensus")} />
                   </td>
-                  <td className="px-3 py-1 tabular-nums">
-                    <ScoreVal v={findScore(tokens, rec.symbol, "alpha")} />
+                  <td className="px-3 py-1 tabular-nums text-right">
+                    <ScoreVal v={findScore(tokens, rec.symbol, "momentum")} />
                   </td>
-                  <td className="px-3 py-1 tabular-nums">
+                  <td className="px-3 py-1 tabular-nums text-right">
                     <ScoreVal v={findScore(tokens, rec.symbol, "smartMoney")} />
                   </td>
-                  <td className="px-3 py-1 tabular-nums">
+                  <td className="px-3 py-1 tabular-nums text-right">
                     <ScoreVal v={findScore(tokens, rec.symbol, "accumulation")} />
                   </td>
-                  <td className={`px-3 py-1 tabular-nums ${
+                  <td className={`px-3 py-1 tabular-nums text-right ${
                     findPriceChange(tokens, rec.symbol) >= 0 ? "text-signal-green" : "text-signal-red"
                   }`}>
                     {formatPct(findPriceChange(tokens, rec.symbol))}
                   </td>
-                  <td className="px-3 py-1 tabular-nums font-semibold">
+                  <td className="px-3 py-1 tabular-nums font-semibold text-right">
                     <ScoreVal v={rec.score} />
                   </td>
                   <td className="px-3 py-1 text-center">
@@ -121,7 +121,7 @@ export default function BuyRecommendations({ tokens, loading, onBuy, onTokenClic
   );
 }
 
-function findScore(tokens: TokenRow[], symbol: string, field: keyof Pick<TokenRow, "alpha" | "smartMoney" | "accumulation" | "consensus">): number {
+function findScore(tokens: TokenRow[], symbol: string, field: keyof Pick<TokenRow, "momentum" | "smartMoney" | "accumulation" | "consensus">): number {
   return tokens.find((t) => t.symbol.startsWith(symbol))?.[field] ?? 0;
 }
 

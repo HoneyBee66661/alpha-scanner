@@ -52,9 +52,9 @@ export function ConsensusPill({ value }: { value: number }) {
 export function AllScores({ scores }: { scores: Scores }) {
   return (
     <div className="flex items-center gap-3 text-mono">
-      <ScoreBadge label="A" value={scores.alpha} threshold={{ high: 80, mid: 60 }} />
+      <ScoreBadge label="M" value={scores.momentum} threshold={{ high: 80, mid: 60 }} />
       <ScoreBadge label="SM" value={scores.smartMoney} threshold={{ high: 75, mid: 55 }} />
-      <ScoreBadge label="SW" value={scores.swing} threshold={{ high: 70, mid: 50 }} />
+      <ScoreBadge label="ST" value={scores.structure} threshold={{ high: 70, mid: 50 }} />
       <ScoreBadge label="AC" value={scores.accumulation} threshold={{ high: 70, mid: 50 }} />
       <span className="text-cell text-text-muted font-semibold">C:</span>
       <ConsensusPill value={scores.consensus} />

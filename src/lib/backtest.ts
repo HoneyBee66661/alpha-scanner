@@ -1,14 +1,14 @@
 import type { OHLCV } from "../types";
 
 interface OHLCVWithScores extends OHLCV {
-  alpha: number;
+  momentum: number;
   smartMoney: number;
-  swing: number;
+  structure: number;
   accumulation: number;
   consensus: number;
 }
 
-export type ScoreModel = "alpha" | "smartMoney" | "swing" | "accumulation" | "consensus";
+export type ScoreModel = "momentum" | "smartMoney" | "structure" | "accumulation" | "consensus";
 
 export interface BacktestParams {
   model: ScoreModel;
@@ -36,12 +36,12 @@ export interface BacktestResult {
 
 function getScore(candle: OHLCVWithScores, model: ScoreModel): number {
   switch (model) {
-    case "alpha":
-      return candle.alpha;
+    case "momentum":
+      return candle.momentum;
     case "smartMoney":
       return candle.smartMoney;
-    case "swing":
-      return candle.swing;
+    case "structure":
+      return candle.structure;
     case "accumulation":
       return candle.accumulation;
     case "consensus":
@@ -111,7 +111,7 @@ export function runBacktest(
 export function backtestAllModels(
   tokens: { symbol: string; ohlcv: OHLCVWithScores[] }[]
 ): BacktestResult[] {
-  const models: ScoreModel[] = ["alpha", "smartMoney", "swing", "accumulation", "consensus"];
+  const models: ScoreModel[] = ["momentum", "smartMoney", "structure", "accumulation", "consensus"];
   const thresholds = [60, 70, 75, 80, 85, 90];
   const holdPeriods = [1, 3, 6, 12, 24];
 
@@ -137,15 +137,15 @@ export function backtestAllModels(
 }
 
 export function buildBacktestCandles(
-  tokens: { symbol: string; ohlcv: OHLCV[]; alpha: number; smartMoney: number; swing: number; accumulation: number; consensus: number }[]
+  tokens: { symbol: string; ohlcv: OHLCV[]; momentum: number; smartMoney: number; structure: number; accumulation: number; consensus: number }[]
 ): { symbol: string; ohlcv: OHLCVWithScores[] }[] {
   return tokens.map((t) => ({
     symbol: t.symbol,
     ohlcv: t.ohlcv.map((c) => ({
       ...c,
-      alpha: t.alpha,
+      momentum: t.momentum,
       smartMoney: t.smartMoney,
-      swing: t.swing,
+      structure: t.structure,
       accumulation: t.accumulation,
       consensus: t.consensus,
     })),

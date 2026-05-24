@@ -1,15 +1,14 @@
 import type { TokenRow, OHLCV } from "../types";
 import { STABLECOINS, EXCLUDED_TOKENS } from "../types";
 import {
-  computeAlphaScore,
+  computeMomentumScore,
   computeSmartMoneyScore,
-  computeSwingScore,
+  computeStructureScore,
   computeAccumulationScore,
+  computeSentimentScore,
+  computeMMFootprint,
   computeConsensusScore,
-  computeTrendStrength,
-  computeBuyPressure,
-  computeHigherHigh,
-  computeFundingStability,
+  computeOHLCVMetrics,
   generateTags,
 } from "./scores";
 
@@ -83,34 +82,22 @@ export async function fetchCoinGeckoTokens(): Promise<TokenRow[]> {
             { open: price, high: high24h, low: low24h, close: price, volume: distVolume },
           ];
 
-      const closes = ohlcv.map((k) => k.close);
-      const avgVolume = ohlcv.length > 1
-        ? ohlcv.slice(0, -1).reduce((s, k) => s + k.volume, 0) / Math.max(ohlcv.length - 1, 1)
-        : distVolume;
+      const metrics = computeOHLCVMetrics(ohlcv);
       const tradeCount = Math.floor(volume24h / Math.max(price, 0.0001) / 5);
-      const prevVolume = ohlcv.length >= 2 ? ohlcv[ohlcv.length - 2].volume : avgVolume;
+      // CoinGecko estimates (no real perps data)
+      const oiEstimate = c.market_cap * 0.02;
+      const oiDelta24h = priceChange24h * 0.8; // OI tends to follow price
+      const buyRatio = 0.52; // slight buy bias as market estimate
+      const rvol = metrics.avgVol > 0 ? metrics.recentVol / metrics.avgVol : 1;
 
-      const alpha = computeAlphaScore(volume24h, avgVolume, tradeCount, tradeCount, prevVolume, priceChange24h);
-      const trend = computeTrendStrength(price, closes);
-      // CoinGecko: estimate buy pressure from volume/price ratio vs avg
-      const buyPressure = computeBuyPressure(
-        volume24h > avgVolume ? volume24h - avgVolume : 0,
-        volume24h
-      );
-      const hh = computeHigherHigh(price, closes.length >= 2 ? closes[closes.length - 2] : price);
-      const fs = computeFundingStability(0);
+      const momentum = computeMomentumScore(metrics, priceChange24h);
+      const smartMoney = computeSmartMoneyScore(oiDelta24h, priceChange24h, 0, 0, buyRatio, rvol);
+      const structure = computeStructureScore(metrics, priceChange24h);
+      const accumulation = computeAccumulationScore(metrics, oiDelta24h, 0);
+      const sentiment = computeSentimentScore(0, oiDelta24h, priceChange24h, buyRatio);
+      const mmFootprint = computeMMFootprint(metrics, price);
 
-      const accumulation = computeAccumulationScore(
-        avgVolume > 0 ? ((volume24h - avgVolume) / avgVolume) * 100 : 0,
-        priceChange24h,
-        volume24h > avgVolume,
-        true
-      );
-
-      const rvol = volume24h / Math.max(avgVolume, 1);
-      const smartMoney = computeSmartMoneyScore(alpha, rvol, buyPressure, Math.min(rvol, 3), accumulation);
-      const swing = computeSwingScore(trend, rvol, alpha * 0.5, hh, fs);
-      const scores = { alpha, smartMoney, swing, accumulation, consensus: 0 };
+      const scores = { momentum, smartMoney, structure, accumulation, sentiment, mmFootprint, consensus: 0 };
       const consensus = computeConsensusScore(scores);
       scores.consensus = consensus;
 
@@ -123,7 +110,7 @@ export async function fetchCoinGeckoTokens(): Promise<TokenRow[]> {
         high24h,
         low24h,
         ohlcv,
-        openInterest: c.market_cap * 0.02,
+        openInterest: oiEstimate,
         fundingRate: 0,
         takerBuyVolume: volume24h * 0.55,
         takerSellVolume: volume24h * 0.45,

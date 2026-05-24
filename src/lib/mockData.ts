@@ -1,5 +1,22 @@
 import type { TokenRow, OHLCV, SignalTag } from "../types";
 
+function clampM(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function generateMockTags(scores: { momentum: number; smartMoney: number; structure: number; accumulation: number; sentiment: number; mmFootprint: number; consensus: number }, priceChange24h: number, _i: number): SignalTag[] {
+  const tags: SignalTag[] = [];
+  if (scores.smartMoney >= 70) tags.push("Smart Money");
+  if (scores.accumulation >= 65) tags.push("Accumulation");
+  if (scores.momentum >= 75) tags.push("Breakout");
+  if (scores.momentum >= 60 && scores.smartMoney < 70 && scores.accumulation < 65) tags.push("Early Momentum");
+  if (scores.structure >= 65) tags.push("Trending");
+  if (scores.momentum >= 90 || priceChange24h > 30) tags.push("Overheated");
+  if (priceChange24h > 40 || scores.consensus < 25) tags.push("High Risk");
+  if (tags.length === 0) tags.push("Early Momentum");
+  return tags;
+}
+
 const TOP_TOKENS: { base: string; price: number; volScale: number; trend: number }[] = [
   { base: "BTC", price: 87650.32, volScale: 1.0, trend: 0.6 },
   { base: "ETH", price: 4020.18, volScale: 0.85, trend: 0.55 },
@@ -133,57 +150,31 @@ function generateOHLCV(
   return candles;
 }
 
-const tagOptions: SignalTag[][] = [
-  ["Smart Money", "Breakout"],
-  ["Accumulation", "Trending"],
-  ["Early Momentum"],
-  ["Smart Money", "Accumulation", "Breakout"],
-  ["Trending"],
-  ["Breakout"],
-  ["Early Momentum", "Trending"],
-  ["Overheated", "High Risk"],
-  ["Smart Money"],
-  ["Accumulation"],
-];
-
 export function generateMockTokens(): TokenRow[] {
   const rand = seededRandom(Date.now());
-  const now = Date.now();
 
   return TOP_TOKENS.map((t, i) => {
     const price = t.price * (1 + (rand() - 0.5) * 0.04);
     const ohlcv = generateOHLCV(price, 50, t.trend, rand);
-    const closes = ohlcv.map((c) => c.close);
     const volume24h = 500_000_000 * t.volScale * (0.5 + rand());
-    const avgVolume = volume24h * (0.3 + rand() * 0.5);
     const priceChange24h = (rand() - 0.45) * 12 * (0.5 + t.trend);
     const tradeCount = Math.floor(50_000 * t.volScale * (0.5 + rand()));
 
-    const alpha = Math.round(
-      Math.min(100, Math.max(0, 35 + rand() * 50 + t.trend * 20 + priceChange24h * 2))
-    );
-    const smartMoney = Math.round(
-      Math.min(100, Math.max(0, 30 + rand() * 55 + t.trend * 20 - Math.abs(priceChange24h)))
-    );
-    const swing = Math.round(
-      Math.min(100, Math.max(0, 25 + rand() * 55 + t.trend * 25))
-    );
-    const accumulation = Math.round(
-      Math.min(100, Math.max(0, 20 + rand() * 60 + t.trend * 15))
-    );
-    const consensus = Math.round(
-      smartMoney * 0.35 + swing * 0.25 + alpha * 0.2 + accumulation * 0.2
-    );
+    // Realistic mock scores with differentiated distributions
+    const baseNoise = () => rand() * 40 - 20; // -20 to +20
+    const momentum = clampM(35 + t.trend * 25 + priceChange24h * 1.5 + baseNoise());
+    const smartMoney = clampM(30 + t.trend * 20 + t.volScale * 20 + baseNoise());
+    const structure = clampM(30 + t.trend * 25 + baseNoise());
+    const accumulation = clampM(25 + t.trend * 20 + baseNoise());
+    const sentiment = clampM(40 + priceChange24h * 0.5 + baseNoise());
+    const mmFootprint = clampM(30 + t.volScale * 15 + baseNoise() * 0.7);
+    const consensus = clampM(Math.round(
+      momentum * 0.25 + smartMoney * 0.25 + structure * 0.20 +
+      accumulation * 0.15 + sentiment * 0.10 + mmFootprint * 0.05
+    ));
 
-    const tags: SignalTag[] = [];
-    if (smartMoney >= 75) tags.push("Smart Money");
-    if (accumulation >= 70) tags.push("Accumulation");
-    if (alpha >= 80) tags.push("Breakout");
-    if (alpha >= 65 && smartMoney < 75 && accumulation < 70) tags.push("Early Momentum");
-    if (swing >= 70) tags.push("Trending");
-    if (alpha >= 95) tags.push("Overheated");
-    if (priceChange24h > 40 || consensus < 30) tags.push("High Risk");
-    if (tags.length === 0) tags.push(tagOptions[i % tagOptions.length][0]);
+    const scores = { momentum, smartMoney, structure, accumulation, sentiment, mmFootprint, consensus };
+    const tags = generateMockTags(scores, priceChange24h, i);
 
     return {
       symbol: `${t.base}USDT`,
@@ -198,11 +189,7 @@ export function generateMockTokens(): TokenRow[] {
       fundingRate: (rand() - 0.5) * 0.002,
       takerBuyVolume: volume24h * (0.4 + rand() * 0.2),
       takerSellVolume: volume24h * (0.4 + rand() * 0.2),
-      alpha,
-      smartMoney,
-      swing,
-      accumulation,
-      consensus,
+      ...scores,
       tags,
     };
   });

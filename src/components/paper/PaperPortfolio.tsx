@@ -1,16 +1,21 @@
-import { useRef, useEffect } from "react";
-import type { PaperTrade, UserSettings, Scores } from "../../types";
+import { useRef, useEffect, useState } from "react";
+import type { PaperTrade, UserSettings, Scores, ClosedTrade } from "../../types";
 import { getSellRecommendation, recommendationColor, recommendationBg } from "../../lib/sellRecommendation";
 import type { SellRecommendation } from "../../lib/sellRecommendation";
 import { downloadCSV } from "../../lib/csv";
 import { createChart, ColorType } from "lightweight-charts";
+import { computeLevel } from "../../lib/gamification";
+import type { GamificationState } from "../../lib/gamification";
 
 interface Props {
   trades: PaperTrade[];
   prices: Map<string, number>;
   settings: UserSettings;
-  scores: Map<string, { alpha: number; smartMoney: number; swing: number; accumulation: number; consensus: number }>;
+  scores: Map<string, { momentum: number; smartMoney: number; structure: number; accumulation: number; sentiment: number; mmFootprint: number; consensus: number }>;
   onRemove: (id: string) => void;
+  balance?: number;
+  onSetBalance?: (balance: number) => void;
+  gamification?: GamificationState;
 }
 
 function recLabel(action: string): string {
@@ -23,7 +28,7 @@ function recLabel(action: string): string {
   }
 }
 
-export default function PaperPortfolio({ trades, prices, settings, scores, onRemove }: Props) {
+export default function PaperPortfolio({ trades, prices, settings, scores, onRemove, balance, onSetBalance, gamification }: Props) {
   if (!trades.length) {
     return (
       <div className="flex flex-col flex-1 min-h-0 items-center justify-center">
@@ -47,12 +52,12 @@ export default function PaperPortfolio({ trades, prices, settings, scores, onRem
         {trades.length > 0 && (
           <button
             onClick={() => {
-              const headers = ["Symbol", "Entry Price", "Qty", "Entry Date", "Alpha", "Smart Money", "Swing", "Consensus"];
+              const headers = ["Symbol", "Entry Price", "Qty", "Entry Date", "Momentum", "Smart Money", "Structure", "Consensus"];
               const rows = trades.map((t) => [
                 t.symbol, String(t.entryPrice), String(t.quantity),
                 new Date(t.timestamp).toISOString(),
-                String(t.alphaSnapshot), String(t.smartMoneySnapshot),
-                String(t.swingSnapshot), String(t.consensusSnapshot),
+                String(t.momentumSnapshot), String(t.smartMoneySnapshot),
+                String(t.structureSnapshot), String(t.consensusSnapshot),
               ]);
               downloadCSV("alpha-scanner-trades.csv", headers, rows);
             }}
@@ -62,6 +67,15 @@ export default function PaperPortfolio({ trades, prices, settings, scores, onRem
           </button>
         )}
       </div>
+
+      {/* Balance summary */}
+      <BalanceBar
+        balance={balance}
+        trades={trades}
+        prices={prices}
+        onSetBalance={onSetBalance}
+        gamification={gamification}
+      />
 
       {/* P&L summary cards */}
       {trades.length > 0 && <PnLSummary trades={trades} prices={prices} />}
@@ -153,6 +167,105 @@ export default function PaperPortfolio({ trades, prices, settings, scores, onRem
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+function BalanceBar({
+  balance,
+  trades,
+  prices,
+  onSetBalance,
+  gamification,
+}: {
+  balance?: number;
+  trades: PaperTrade[];
+  prices: Map<string, number>;
+  onSetBalance?: (b: number) => void;
+  gamification?: GamificationState;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState("");
+
+  const invested = trades.reduce((s, t) => s + t.entryPrice * t.quantity, 0);
+  const positionValue = trades.reduce(
+    (s, t) => s + (prices.get(t.symbol) ?? t.entryPrice) * t.quantity,
+    0
+  );
+  const totalEquity = (balance ?? 0) + positionValue;
+  const totalPnl = totalEquity - 10000; // P&L relative to initial $10k
+
+  const level = gamification ? computeLevel(gamification.xp) : null;
+
+  return (
+    <div className="px-4 py-2 border-b border-border bg-surface-card/50">
+      <div className="flex flex-wrap gap-3 items-center">
+        {level && (
+          <div className="flex items-center gap-2 mr-2 pr-2 border-r border-border">
+            <div className="flex items-center justify-center w-7 h-7 rounded-full border border-signal-blue/60 text-[10px] font-bold text-signal-blue">
+              {level.level}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-label font-semibold text-text-primary">{level.title}</span>
+              <span className="text-[10px] text-text-muted">{gamification?.xp ?? 0} XP</span>
+            </div>
+          </div>
+        )}
+        <MiniStat label="Available" value={`$${(balance ?? 0).toFixed(2)}`} accent="text-signal-blue" />
+        <MiniStat label="Invested" value={`$${invested.toFixed(2)}`} />
+        <MiniStat label="Equity" value={`$${totalEquity.toFixed(2)}`} accent={totalPnl >= 0 ? "text-signal-green" : "text-signal-red"} />
+        <MiniStat label="Total P&L" value={`${totalPnl >= 0 ? "+" : ""}$${totalPnl.toFixed(2)}`} accent={totalPnl >= 0 ? "text-signal-green" : "text-signal-red"} />
+        {onSetBalance && (
+          <div className="ml-auto flex items-center gap-1">
+            {editing ? (
+              <>
+                <input
+                  type="number"
+                  min="0"
+                  step="100"
+                  className="w-28 rounded border border-border bg-surface-input px-2 py-1 text-cell text-text-primary outline-none"
+                  value={editVal}
+                  onChange={(e) => setEditVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      onSetBalance(Number(editVal) || 0);
+                      setEditing(false);
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    onSetBalance(Number(editVal) || 0);
+                    setEditing(false);
+                  }}
+                  className="px-2 py-1 rounded text-label bg-signal-greenBg text-signal-green hover:opacity-80"
+                >
+                  Apply
+                </button>
+                <button
+                  onClick={() => {
+                    onSetBalance(10000);
+                    setEditing(false);
+                  }}
+                  className="px-2 py-1 rounded text-label text-text-muted hover:text-text-primary"
+                >
+                  Reset $10k
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  setEditVal(String(balance ?? 10000));
+                  setEditing(true);
+                }}
+                className="px-2 py-1 rounded text-label text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors"
+              >
+                Set Balance
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

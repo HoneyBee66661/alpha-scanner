@@ -8,7 +8,7 @@ interface Props {
   tokens: TokenRow[];
   loading: boolean;
   error?: string | null;
-  highlightScore?: "alpha" | "smartMoney" | "swing" | "accumulation" | "consensus";
+  highlightScore?: "momentum" | "smartMoney" | "structure" | "accumulation" | "consensus";
   watchlist?: string[];
   onBuy?: (symbol: string) => void;
   onToggleWatchlist?: (symbol: string) => void;
@@ -33,9 +33,9 @@ export default function ScannerTable({ tokens, loading, highlightScore, watchlis
         }
         switch (sort) {
           case "price": va = a.price; vb = b.price; break;
-          case "alpha": va = a.alpha; vb = b.alpha; break;
+          case "momentum": va = a.momentum; vb = b.momentum; break;
           case "smartMoney": va = a.smartMoney; vb = b.smartMoney; break;
-          case "swing": va = a.swing; vb = b.swing; break;
+          case "structure": va = a.structure; vb = b.structure; break;
           case "accumulation": va = a.accumulation; vb = b.accumulation; break;
           case "consensus": va = a.consensus; vb = b.consensus; break;
           case "volume24h": va = a.volume24h; vb = b.volume24h; break;
@@ -63,9 +63,9 @@ export default function ScannerTable({ tokens, loading, highlightScore, watchlis
   const cols: { key: SortColumn; label: string; align: "left" | "right" }[] = [
     { key: "symbol", label: "Pair", align: "left" },
     { key: "price", label: "Price", align: "right" },
-    { key: "alpha", label: "Alpha", align: "right" },
+    { key: "momentum", label: "Momentum", align: "right" },
     { key: "smartMoney", label: "Smart $", align: "right" },
-    { key: "swing", label: "Swing", align: "right" },
+    { key: "structure", label: "Structure", align: "right" },
     { key: "accumulation", label: "Accum", align: "right" },
     { key: "consensus", label: "Cons", align: "right" },
     { key: "volume24h", label: "Vol 24h", align: "right" },
@@ -89,10 +89,10 @@ export default function ScannerTable({ tokens, loading, highlightScore, watchlis
         {tokens.length > 0 && (
           <button
             onClick={() => {
-              const headers = ["Symbol", "Price", "Vol 24h", "24h %", "Alpha", "Smart Money", "Swing", "Accumulation", "Consensus", "Tags"];
+              const headers = ["Symbol", "Price", "Vol 24h", "24h %", "Momentum", "Smart Money", "Structure", "Accumulation", "Consensus", "Tags"];
               const rows = tokens.map((t) => [
                 t.symbol, String(t.price), String(t.volume24h), `${t.priceChange24h.toFixed(2)}%`,
-                String(t.alpha), String(t.smartMoney), String(t.swing),
+                String(t.momentum), String(t.smartMoney), String(t.structure),
                 String(t.accumulation), String(t.consensus), t.tags.join("; "),
               ]);
               downloadCSV("alpha-scanner-market-data.csv", headers, rows);
@@ -169,14 +169,14 @@ export default function ScannerTable({ tokens, loading, highlightScore, watchlis
                   <td className="px-3 py-1 text-text-primary tabular-nums text-right">
                     {token.price < 0.01 ? token.price.toFixed(6) : token.price.toFixed(4)}
                   </td>
-                  <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "alpha" ? "text-signal-yellow" : ""}`}>
-                    <ScoreVal v={token.alpha} />
+                  <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "momentum" ? "text-signal-yellow" : ""}`}>
+                    <ScoreVal v={token.momentum} />
                   </td>
                   <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "smartMoney" ? "text-signal-yellow" : ""}`}>
                     <ScoreVal v={token.smartMoney} />
                   </td>
-                  <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "swing" ? "text-signal-yellow" : ""}`}>
-                    <ScoreVal v={token.swing} />
+                  <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "structure" ? "text-signal-yellow" : ""}`}>
+                    <ScoreVal v={token.structure} />
                   </td>
                   <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "accumulation" ? "text-signal-yellow" : ""}`}>
                     <ScoreVal v={token.accumulation} />

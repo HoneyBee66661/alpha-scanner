@@ -17,7 +17,7 @@ const CONSENSUS_LEVELS: { threshold: number; urgency: BuyUrgency; action: BuyAct
 ];
 
 export function getBuyRecommendation(token: TokenRow): BuyRecommendation {
-  const { consensus, alpha, smartMoney, accumulation, priceChange24h, volume24h } = token;
+  const { consensus, momentum, smartMoney, accumulation, priceChange24h, volume24h } = token;
 
   // Penalise tokens that have already pumped hard
   const pumpPenalty = priceChange24h > 10 ? (priceChange24h - 10) * 2 : 0;
@@ -30,7 +30,7 @@ export function getBuyRecommendation(token: TokenRow): BuyRecommendation {
   const rawScore =
     consensus * 0.35 +
     smartMoney * 0.25 +
-    alpha * 0.20 +
+    momentum * 0.20 +
     accumulation * 0.20 +
     volBonus -
     pumpPenalty;
@@ -43,7 +43,7 @@ export function getBuyRecommendation(token: TokenRow): BuyRecommendation {
       const parts: string[] = [];
       if (smartMoney >= 75) parts.push("smart money active");
       if (accumulation >= 70) parts.push("accumulation detected");
-      if (alpha >= 80) parts.push("momentum building");
+      if (momentum >= 80) parts.push("momentum building");
       const signal = parts.length ? ` — ${parts.join(", ")}` : "";
       return { action: level.action, reason: `Consensus ${consensus}${signal}`, urgency: level.urgency, score };
     }

@@ -48,9 +48,9 @@ export default function WatchlistPanel({ tokens, watchlist, loading, onBuy, onRe
                 <th className="px-3 py-2 text-left">Symbol</th>
                 <th className="px-3 py-2 text-right">Price</th>
                 <th className="px-3 py-2 text-right">Cons</th>
-                <th className="px-3 py-2 text-right">Alpha</th>
+                <th className="px-3 py-2 text-right">Momentum</th>
                 <th className="px-3 py-2 text-right">Smart $</th>
-                <th className="px-3 py-2 text-right">Swing</th>
+                <th className="px-3 py-2 text-right">Structure</th>
                 <th className="px-3 py-2 text-right">Accum</th>
                 <th className="px-3 py-2 text-right">24h %</th>
                 <th className="px-3 py-2 text-left">Tags</th>
@@ -82,9 +82,9 @@ export default function WatchlistPanel({ tokens, watchlist, loading, onBuy, onRe
                   <td className="px-3 py-1 tabular-nums">
                     <ConsVal v={token.consensus} />
                   </td>
-                  <td className="px-3 py-1 tabular-nums"><ScoreVal v={token.alpha} /></td>
+                  <td className="px-3 py-1 tabular-nums"><ScoreVal v={token.momentum} /></td>
                   <td className="px-3 py-1 tabular-nums"><ScoreVal v={token.smartMoney} /></td>
-                  <td className="px-3 py-1 tabular-nums"><ScoreVal v={token.swing} /></td>
+                  <td className="px-3 py-1 tabular-nums"><ScoreVal v={token.structure} /></td>
                   <td className="px-3 py-1 tabular-nums"><ScoreVal v={token.accumulation} /></td>
                   <td className={`px-3 py-1 tabular-nums ${token.priceChange24h >= 0 ? "text-signal-green" : "text-signal-red"}`}>
                     {token.priceChange24h >= 0 ? "+" : ""}{token.priceChange24h.toFixed(2)}%
