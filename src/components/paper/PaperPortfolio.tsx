@@ -198,6 +198,7 @@ function MiniStat({ label, value, accent }: { label: string; value: string; acce
 
 function PnLChart({ returns }: { returns: { symbol: string; gross: number; pct: number }[] }) {
   const ref = useRef<HTMLDivElement>(null);
+  const returnsKey = JSON.stringify(returns.map((r) => [r.symbol, r.gross.toFixed(2), r.pct.toFixed(2)]));
 
   useEffect(() => {
     if (!ref.current || !returns.length) return;
@@ -243,7 +244,8 @@ function PnLChart({ returns }: { returns: { symbol: string; gross: number; pct: 
       ro.disconnect();
       chart.remove();
     };
-  }, [returns]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [returnsKey]);
 
   if (!returns.length) return null;
   return (

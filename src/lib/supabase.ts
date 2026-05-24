@@ -4,7 +4,22 @@ import type { PaperTrade, UserSettings } from "../types";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? "";
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+let _client: ReturnType<typeof createClient> | null = null;
+
+function getClient() {
+  if (!_client) {
+    _client = createClient(supabaseUrl || "http://localhost", supabaseKey || "anon-key");
+  }
+  return _client;
+}
+
+export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_, prop) {
+    const client = getClient();
+    const val = (client as any)[prop];
+    return typeof val === "function" ? val.bind(client) : val;
+  },
+});
 
 export function isConfigured(): boolean {
   return supabaseUrl.length > 0 && supabaseKey.length > 0;

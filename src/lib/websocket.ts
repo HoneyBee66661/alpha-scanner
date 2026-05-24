@@ -20,6 +20,7 @@ export class BinanceWebSocket {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private destroyed = false;
+  private generation = 0;
 
   get connected() {
     return this.ws?.readyState === WebSocket.OPEN;
@@ -37,6 +38,8 @@ export class BinanceWebSocket {
   private connect() {
     if (this.destroyed) return;
     this.close();
+
+    const gen = ++this.generation;
 
     const streams = this.subscribedSymbols.map((s) => `${s}usdt@ticker`).join("/");
     const url = `${BINANCE_WS}/${streams}`;
@@ -73,6 +76,7 @@ export class BinanceWebSocket {
     };
 
     this.ws.onclose = () => {
+      if (gen !== this.generation) return; // stale handler — ignore
       if (!this.destroyed && this.reconnectAttempts < this.maxReconnectAttempts) {
         const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
         this.reconnectAttempts++;

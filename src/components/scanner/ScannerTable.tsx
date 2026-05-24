@@ -60,16 +60,16 @@ export default function ScannerTable({ tokens, loading, highlightScore, watchlis
     return dir === "asc" ? " ↑" : " ↓";
   }
 
-  const cols: { key: SortColumn; label: string }[] = [
-    { key: "symbol", label: "Pair" },
-    { key: "price", label: "Price" },
-    { key: "alpha", label: "Alpha" },
-    { key: "smartMoney", label: "Smart $" },
-    { key: "swing", label: "Swing" },
-    { key: "accumulation", label: "Accum" },
-    { key: "consensus", label: "Cons" },
-    { key: "volume24h", label: "Vol 24h" },
-    { key: "priceChange24h", label: "24h %" },
+  const cols: { key: SortColumn; label: string; align: "left" | "right" }[] = [
+    { key: "symbol", label: "Pair", align: "left" },
+    { key: "price", label: "Price", align: "right" },
+    { key: "alpha", label: "Alpha", align: "right" },
+    { key: "smartMoney", label: "Smart $", align: "right" },
+    { key: "swing", label: "Swing", align: "right" },
+    { key: "accumulation", label: "Accum", align: "right" },
+    { key: "consensus", label: "Cons", align: "right" },
+    { key: "volume24h", label: "Vol 24h", align: "right" },
+    { key: "priceChange24h", label: "24h %", align: "right" },
   ];
 
   return (
@@ -125,11 +125,9 @@ export default function ScannerTable({ tokens, loading, highlightScore, watchlis
                   <th
                     key={c.key}
                     onClick={() => toggle(c.key)}
-                    className={`px-3 py-2 text-left cursor-pointer select-none hover:text-text-primary transition-colors ${
-                      c.key === highlightScore
-                        ? "text-signal-blue"
-                        : ""
-                    }`}
+                    className={`px-3 py-2 cursor-pointer select-none hover:text-text-primary transition-colors ${
+                      c.key === highlightScore ? "text-signal-blue" : ""
+                    } ${c.align === "right" ? "text-right" : "text-left"}`}
                   >
                     {c.label}
                     <span className="text-text-muted text-[10px]">
@@ -162,35 +160,35 @@ export default function ScannerTable({ tokens, loading, highlightScore, watchlis
                     </td>
                   )}
                   <td
-                    className="px-3 py-1 text-text-primary font-semibold tabular-nums cursor-pointer hover:text-signal-blue transition-colors"
+                    className={`px-3 py-1 text-text-primary font-semibold tabular-nums ${onTokenClick ? "cursor-pointer hover:text-signal-blue transition-colors" : ""}`}
                     onClick={() => onTokenClick?.(token.symbol)}
                   >
                     {token.symbol.replace("USDT", "")}
                     <span className="text-text-muted font-normal">/USDT</span>
                   </td>
-                  <td className="px-3 py-1 text-text-primary tabular-nums">
+                  <td className="px-3 py-1 text-text-primary tabular-nums text-right">
                     {token.price < 0.01 ? token.price.toFixed(6) : token.price.toFixed(4)}
                   </td>
-                  <td className={`px-3 py-1 tabular-nums ${highlightScore === "alpha" ? "text-signal-yellow" : ""}`}>
+                  <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "alpha" ? "text-signal-yellow" : ""}`}>
                     <ScoreVal v={token.alpha} />
                   </td>
-                  <td className={`px-3 py-1 tabular-nums ${highlightScore === "smartMoney" ? "text-signal-yellow" : ""}`}>
+                  <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "smartMoney" ? "text-signal-yellow" : ""}`}>
                     <ScoreVal v={token.smartMoney} />
                   </td>
-                  <td className={`px-3 py-1 tabular-nums ${highlightScore === "swing" ? "text-signal-yellow" : ""}`}>
+                  <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "swing" ? "text-signal-yellow" : ""}`}>
                     <ScoreVal v={token.swing} />
                   </td>
-                  <td className={`px-3 py-1 tabular-nums ${highlightScore === "accumulation" ? "text-signal-yellow" : ""}`}>
+                  <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "accumulation" ? "text-signal-yellow" : ""}`}>
                     <ScoreVal v={token.accumulation} />
                   </td>
-                  <td className={`px-3 py-1 tabular-nums ${highlightScore === "consensus" ? "text-signal-yellow" : ""}`}>
+                  <td className={`px-3 py-1 tabular-nums text-right ${highlightScore === "consensus" ? "text-signal-yellow" : ""}`}>
                     <ConsVal v={token.consensus} />
                   </td>
-                  <td className="px-3 py-1 text-text-secondary tabular-nums">
+                  <td className="px-3 py-1 text-text-secondary tabular-nums text-right">
                     {formatVol(token.volume24h)}
                   </td>
                   <td
-                    className={`px-3 py-1 tabular-nums ${
+                    className={`px-3 py-1 tabular-nums text-right ${
                       token.priceChange24h >= 0 ? "text-signal-green" : "text-signal-red"
                     }`}
                   >

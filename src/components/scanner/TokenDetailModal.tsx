@@ -88,7 +88,7 @@ export default function TokenDetailModal({ token, onClose }: Props) {
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [token]);
+  }, [token.symbol, token.ohlcv]);
 
   // Handle resize via ResizeObserver too
   useEffect(() => {
