@@ -89,7 +89,7 @@ export default function App() {
   });
 
   const [toast, setToast] = useState<{ message: string } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
 

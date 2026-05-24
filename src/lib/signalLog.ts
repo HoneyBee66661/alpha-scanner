@@ -65,12 +65,16 @@ export async function addSignalLog(symbol: string, event: string, details: strin
 
   // Fire-and-forget to Supabase
   if (isConfigured()) {
-    await supabase.from("signal_log").insert({
-      symbol,
-      event,
-      details,
-      timestamp: entry.timestamp,
-    }).catch((e) => console.warn("Supabase signal_log insert failed", e));
+    try {
+      await supabase.from("signal_log").insert({
+        symbol,
+        event,
+        details,
+        timestamp: entry.timestamp,
+      });
+    } catch (e) {
+      console.warn("Supabase signal_log insert failed", e);
+    }
   }
 
   return entry;

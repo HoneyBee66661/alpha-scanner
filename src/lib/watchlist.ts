@@ -39,9 +39,11 @@ export async function addToWatchlist(symbol: string): Promise<void> {
   saveLocal([...local, symbol]);
 
   if (isConfigured()) {
-    await supabase.from("watchlist").upsert({ symbol }).catch((e) =>
-      console.warn("Supabase watchlist add failed", e)
-    );
+    try {
+      await supabase.from("watchlist").upsert({ symbol });
+    } catch (e) {
+      console.warn("Supabase watchlist add failed", e);
+    }
   }
 }
 
@@ -50,8 +52,10 @@ export async function removeFromWatchlist(symbol: string): Promise<void> {
   saveLocal(local);
 
   if (isConfigured()) {
-    await supabase.from("watchlist").delete().eq("symbol", symbol).catch((e) =>
-      console.warn("Supabase watchlist remove failed", e)
-    );
+    try {
+      await supabase.from("watchlist").delete().eq("symbol", symbol);
+    } catch (e) {
+      console.warn("Supabase watchlist remove failed", e);
+    }
   }
 }
