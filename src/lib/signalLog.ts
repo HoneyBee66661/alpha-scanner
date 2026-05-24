@@ -49,8 +49,9 @@ export async function fetchSignalLog(): Promise<SignalLogEntry[]> {
   return entries;
 }
 
-export async function addSignalLog(symbol: string, event: string, details: string): Promise<void> {
+export async function addSignalLog(symbol: string, event: string, details: string): Promise<SignalLogEntry> {
   const entry: SignalLogEntry = {
+    id: Date.now(),
     symbol,
     event,
     details,
@@ -71,4 +72,6 @@ export async function addSignalLog(symbol: string, event: string, details: strin
       timestamp: entry.timestamp,
     }).catch((e) => console.warn("Supabase signal_log insert failed", e));
   }
+
+  return entry;
 }

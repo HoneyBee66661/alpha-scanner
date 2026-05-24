@@ -190,7 +190,7 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast(null), 2500);
     // Log signal
     const entry = await addSignalLog(symbol, "BUY", `Entry $${trade.entryPrice.toFixed(4)} · Consensus ${token.consensus}`);
-    setSignalLog((prev) => [{ symbol, event: "BUY", details: `Entry $${trade.entryPrice.toFixed(4)} · Consensus ${token.consensus}`, timestamp: Date.now(), ...(entry ? { id: Date.now() } : {}) }, ...prev]);
+    setSignalLog((prev) => [entry, ...prev]);
     // Telegram alert
     if (settings.telegramBotToken && settings.telegramChatId) {
       const msg = formatTradeAlert("BUY", symbol, trade.entryPrice, `Consensus ${token.consensus}`);
@@ -205,8 +205,8 @@ export default function App() {
       try { await supabaseRemoveTrade(id); } catch (e) { console.warn("Supabase remove failed", e); }
     }
     if (removed) {
-      await addSignalLog(removed.symbol, "REMOVE", `Manual removal · Entry was $${removed.entryPrice.toFixed(4)}`);
-      setSignalLog((prev) => [{ symbol: removed.symbol, event: "REMOVE", details: `Manual removal · Entry was $${removed.entryPrice.toFixed(4)}`, timestamp: Date.now() }, ...prev]);
+      const rmEntry = await addSignalLog(removed.symbol, "REMOVE", `Manual removal · Entry was $${removed.entryPrice.toFixed(4)}`);
+      setSignalLog((prev) => [rmEntry, ...prev]);
       if (settings.telegramBotToken && settings.telegramChatId) {
         const msg = formatTradeAlert("REMOVE", removed.symbol, removed.entryPrice, "Position manually closed");
         sendTelegramAlert(settings.telegramBotToken, settings.telegramChatId, msg).catch(() => {});

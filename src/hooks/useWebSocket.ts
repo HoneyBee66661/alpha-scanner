@@ -12,19 +12,21 @@ export function useWebSocket({ symbols, onTickers }: UseWebSocketOptions) {
   const onTickersRef = useRef(onTickers);
   onTickersRef.current = onTickers;
 
+  const symbolsKey = symbols.slice().sort().join(",");
+
   useEffect(() => {
     if (!symbols.length) return;
 
     const ws = getWS();
     ws.subscribe(symbols);
 
-    // Poll connection state
+    setConnected(ws.connected);
+
     const connInterval = setInterval(() => {
       setConnected(ws.connected);
     }, 2000);
 
     const unsub = ws.onUpdate((tickers) => {
-      setConnected(ws.connected);
       onTickersRef.current(tickers);
     });
 
@@ -32,7 +34,8 @@ export function useWebSocket({ symbols, onTickers }: UseWebSocketOptions) {
       clearInterval(connInterval);
       unsub();
     };
-  }, [symbols]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbolsKey]);
 
   return { connected };
 }
