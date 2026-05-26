@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import type { PaperTrade, UserSettings, Scores, ClosedTrade } from "../../types";
-import { getSellRecommendation, recommendationColor, recommendationBg } from "../../lib/sellRecommendation";
+import { getSellRecommendation, recommendationColor, recommendationBg, recLabel } from "../../lib/sellRecommendation";
 import type { SellRecommendation } from "../../lib/sellRecommendation";
 import { downloadCSV } from "../../lib/csv";
 import { createChart, ColorType } from "lightweight-charts";
@@ -16,16 +16,6 @@ interface Props {
   balance?: number;
   onSetBalance?: (balance: number) => void;
   gamification?: GamificationState;
-}
-
-function recLabel(action: string): string {
-  switch (action) {
-    case "TAKE_PROFIT": return "SELL (TP)";
-    case "STOP_LOSS": return "SELL (SL)";
-    case "SCORE_DECAY": return "WARN";
-    case "TIME_EXIT": return "EXIT";
-    default: return "HOLD";
-  }
 }
 
 export default function PaperPortfolio({ trades, prices, settings, scores, onRemove, balance, onSetBalance, gamification }: Props) {

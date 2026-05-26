@@ -52,13 +52,17 @@ export default function Header({ loading, lastRefresh, onRefresh, children, isGu
       </div>
 
       {/* Auth status */}
-      {isGuest && onSignIn && (
-        <button onClick={onSignIn} className="btn-ghost h-8 px-2 text-text-muted hover:text-signal-blue text-label">
-          Sign In
+      {userEmail ? (
+        <span className="text-label text-text-muted hidden sm:inline">{userEmail}</span>
+      ) : (
+        <button
+          onClick={onSignIn ?? (() => {})}
+          disabled={!onSignIn}
+          className="h-8 px-3 rounded-lg bg-signal-blue text-white text-label font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+          title={!onSignIn ? "Supabase not configured" : "Sign in to sync data"}
+        >
+          Login
         </button>
-      )}
-      {!isGuest && userEmail && (
-        <span className="text-label text-text-muted">{userEmail}</span>
       )}
       {onSignOut && (
         <button onClick={onSignOut} className="btn-ghost h-8 px-2 text-text-muted hover:text-signal-red text-label">

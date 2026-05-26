@@ -30,6 +30,7 @@ import SignalAnalytics from "./components/analytics/SignalAnalytics";
 import BacktestPanel from "./components/analytics/BacktestPanel";
 import TokenDetailModal from "./components/scanner/TokenDetailModal";
 import WatchlistPanel from "./components/scanner/WatchlistPanel";
+import SellRecommendations from "./components/scanner/SellRecommendations";
 import SettingsDrawer from "./components/settings/SettingsDrawer";
 import { fetchWatchlist, addToWatchlist, removeFromWatchlist } from "./lib/watchlist";
 import { fetchSignalLog, addSignalLog } from "./lib/signalLog";
@@ -37,6 +38,10 @@ import type { SignalLogEntry } from "./lib/signalLog";
 import { sendTelegramAlert, formatTradeAlert } from "./lib/telegram";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { runAutoTrader } from "./lib/autoTrader";
+import type { SellRecommendation } from "./lib/sellRecommendation";
+import { rankSellRecommendations } from "./lib/sellRecommendation";
+import { getBuyRecommendation } from "./lib/buyRecommendation";
+import { backtestAllModels, buildBacktestCandles } from "./lib/backtest";
 import { useAuth } from "./hooks/useAuth";
 import AuthPage from "./components/auth/AuthPage";
 import GamificationPanel from "./components/gamification/GamificationPanel";
@@ -355,6 +360,96 @@ export default function App() {
     }
   }, [lastRefresh, settings.autoTradeEnabled, dbReady, loading]);
 
+  // Telegram recommendation alerts: send periodic summary of buy/sell opportunities
+  const lastRecommendationAlert = useRef<number | null>(null);
+  useEffect(() => {
+    if (!settings.telegramBotToken || !settings.telegramChatId) return;
+    if (!dbReady || loading || lastRefresh == null) return;
+    if (lastRefresh === lastRecommendationAlert.current) return;
+    // Only alert if at least 30 min has passed since last alert
+    if (lastRecommendationAlert.current && Date.now() - lastRecommendationAlert.current < 30 * 60 * 1000) return;
+    lastRecommendationAlert.current = Date.now();
+
+    // Top buy opportunities
+    const buyCandidates = tokens
+      .map((t) => ({ token: t, rec: getBuyRecommendation(t) }))
+      .filter(({ rec }) => rec.action === "STRONG_BUY" || rec.action === "BUY")
+      .sort((a, b) => b.rec.score - a.rec.score)
+      .slice(0, 5);
+
+    // Top sell opportunities
+    const sellCandidates = rankSellRecommendations(trades, priceMap, scoreMap)
+      .filter((r) => r.recommendation.action !== "HOLD")
+      .slice(0, 5);
+
+    if (buyCandidates.length === 0 && sellCandidates.length === 0) return;
+
+    const lines: string[] = [
+      `<b>🔍 Alpha Scanner Report</b>`,
+      `<i>${new Date().toLocaleString()}</i>`,
+      ``,
+    ];
+
+    if (buyCandidates.length > 0) {
+      lines.push(`<b>🟢 TOP BUY SIGNALS</b>`);
+      for (const { token, rec } of buyCandidates) {
+        lines.push(`  ${token.symbol.replace("USDT", "")} · Score ${rec.score} · ${rec.reason}`);
+      }
+      lines.push(``);
+    }
+
+    if (sellCandidates.length > 0) {
+      lines.push(`<b>🔴 TOP SELL SIGNALS</b>`);
+      for (const { trade, recommendation, currentPrice } of sellCandidates) {
+        const pnl = ((currentPrice - trade.entryPrice) * trade.quantity).toFixed(2);
+        lines.push(`  ${trade.symbol.replace("USDT", "")} · ${recommendation.action} · ${recommendation.urgency} urgency · P&L $${pnl}`);
+      }
+      lines.push(``);
+    }
+
+    // Backtest snippet: best performing model
+    try {
+      const btTokens = tokens.filter((t) => t.ohlcv && t.ohlcv.length > 10);
+      if (btTokens.length > 0) {
+        const btResults = backtestAllModels(
+          buildBacktestCandles(
+            btTokens.map((t) => ({
+              symbol: t.symbol,
+              ohlcv: t.ohlcv,
+              momentum: t.momentum,
+              smartMoney: t.smartMoney,
+              structure: t.structure,
+              accumulation: t.accumulation,
+              consensus: t.consensus,
+            }))
+          )
+        );
+        if (btResults.length > 0) {
+          const best = btResults.sort((a, b) => {
+            const maxA = Math.max(...a.thresholdResults.map((r) => r.winRate));
+            const maxB = Math.max(...b.thresholdResults.map((r) => r.winRate));
+            return maxB - maxA;
+          })[0];
+          if (best) {
+            const bestThreshold = best.thresholdResults.sort((a, b) => b.winRate - a.winRate)[0];
+            if (bestThreshold && bestThreshold.trades > 0) {
+              lines.push(`<b>Backtest Insight</b>`);
+              lines.push(`  Best model: ${best.model} · ${bestThreshold.winRate}% win rate (threshold ${bestThreshold.threshold})`);
+              lines.push(``);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Skip backtest snippet if it fails
+    }
+
+    lines.push(`<i>Alpha Scanner · ${new Date().toLocaleString()}</i>`);
+
+    const message = lines.join("\n");
+    sendTelegramAlert(settings.telegramBotToken, settings.telegramChatId, message).catch(() => {});
+  }, [lastRefresh, settings.telegramBotToken, settings.telegramChatId, dbReady, loading]);
+
   const priceMap = new Map<string, number>();
   const scoreMap = new Map<string, { momentum: number; smartMoney: number; structure: number; accumulation: number; sentiment: number; mmFootprint: number; consensus: number }>();
   for (const t of tokens) {
@@ -450,6 +545,56 @@ export default function App() {
     }
   }
 
+  async function handleSell(trade: PaperTrade, rec: SellRecommendation, currentPrice: number) {
+    setTrades((prev) => prev.filter((t) => t.id !== trade.id));
+    const proceeds = currentPrice * trade.quantity;
+    setSettings((prev) => ({ ...prev, paperBalance: prev.paperBalance + proceeds }));
+    if (isConfigured()) {
+      try { await supabaseRemoveTrade(trade.id); } catch (e) { console.warn("Supabase remove failed", e); }
+    }
+
+    const exitReasonMap: Record<string, ClosedTrade["exitReason"]> = {
+      TAKE_PROFIT: "AUTO_TP",
+      STOP_LOSS: "AUTO_SL",
+      SCORE_DECAY: "AUTO_DECAY",
+      TIME_EXIT: "AUTO_TIME",
+      TREND_REVERSAL: "AUTO_SELL",
+      VOLUME_DIVERGENCE: "AUTO_SELL",
+    };
+
+    const closed: ClosedTrade = {
+      id: trade.id,
+      symbol: trade.symbol,
+      entryPrice: trade.entryPrice,
+      exitPrice: currentPrice,
+      quantity: trade.quantity,
+      entryTimestamp: trade.timestamp,
+      exitTimestamp: Date.now(),
+      netPnl: (currentPrice - trade.entryPrice) * trade.quantity,
+      netReturnPct: ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100,
+      momentumSnapshot: trade.momentumSnapshot,
+      smartMoneySnapshot: trade.smartMoneySnapshot,
+      structureSnapshot: trade.structureSnapshot,
+      accumulationSnapshot: trade.accumulationSnapshot,
+      sentimentSnapshot: trade.sentimentSnapshot,
+      consensusSnapshot: trade.consensusSnapshot,
+      exitReason: exitReasonMap[rec.action] ?? "MANUAL",
+    };
+    setClosedTrades((prev) => [closed, ...prev]);
+
+    const entry = await addSignalLog(trade.symbol, "SELL", `${rec.action}: ${rec.reason} · P&L $${closed.netPnl.toFixed(2)}`);
+    setSignalLog((prev) => [entry, ...prev]);
+
+    if (settings.telegramBotToken && settings.telegramChatId) {
+      const msg = formatTradeAlert("SELL", trade.symbol, currentPrice, `${rec.action}: ${rec.reason} (P&L: $${closed.netPnl.toFixed(2)})`);
+      sendTelegramAlert(settings.telegramBotToken, settings.telegramChatId, msg).catch(() => {});
+    }
+
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message: `Sold ${trade.symbol.replace("USDT", "")} · ${rec.action} · P&L $${closed.netPnl.toFixed(2)}` });
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
+  }
+
   async function toggleWatchlist(symbol: string) {
     const inList = watchlist.includes(symbol);
     if (inList) {
@@ -508,7 +653,7 @@ export default function App() {
           onRefresh={() => scanner.refresh()}
           isGuest={isGuest}
           userEmail={user?.email}
-          onSignIn={isConfigured() && isGuest ? () => setAuthModalOpen(true) : undefined}
+          onSignIn={isConfigured() ? () => setAuthModalOpen(true) : undefined}
           onSignOut={authenticated ? handleSignOut : undefined}
         >
           <DataSourceToggle
@@ -574,6 +719,15 @@ export default function App() {
               loading={loading}
               onBuy={handlePaperBuy}
               onTokenClick={setSelectedToken}
+            />
+          )}
+          {view === "sell-recs" && (
+            <SellRecommendations
+              trades={trades}
+              prices={priceMap}
+              scores={scoreMap}
+              settings={settings}
+              onSell={handleSell}
             />
           )}
           {view === "watchlist" && (

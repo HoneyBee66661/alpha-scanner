@@ -119,7 +119,7 @@ export type SortColumn =
 
 export type SortDirection = "asc" | "desc";
 
-export type ScannerView = "scanner" | "buy-recs" | "watchlist" | "smart-money" | "accumulation" | "portfolio" | "analytics" | "backtest" | "signal-log" | "settings" | "profile";
+export type ScannerView = "scanner" | "buy-recs" | "sell-recs" | "watchlist" | "smart-money" | "accumulation" | "portfolio" | "analytics" | "backtest" | "signal-log" | "settings" | "profile";
 
 export const STABLECOINS = new Set([
   "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDP", "USDD", "GUSD", "LUSD", "FRAX",

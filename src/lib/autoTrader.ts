@@ -82,10 +82,15 @@ function evaluateAutoSells(
 
     if (rec.action === "HOLD") continue;
 
-    // Auto-sell on high urgency, or medium urgency for TAKE_PROFIT/STOP_LOSS
+    // Auto-sell on critical/high urgency, or medium urgency for TP/SL/trend reversal
     const shouldSell =
+      rec.urgency === "critical" ||
       rec.urgency === "high" ||
-      (rec.urgency === "medium" && (rec.action === "TAKE_PROFIT" || rec.action === "STOP_LOSS"));
+      (rec.urgency === "medium" && (
+        rec.action === "TAKE_PROFIT" ||
+        rec.action === "STOP_LOSS" ||
+        rec.action === "TREND_REVERSAL"
+      ));
 
     if (shouldSell) {
       actions.push({ trade, recommendation: rec, currentPrice });

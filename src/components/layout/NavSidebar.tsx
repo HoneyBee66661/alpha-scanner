@@ -33,6 +33,13 @@ const navItems: { id: ScannerView; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
+    id: "sell-recs",
+    label: "Sell Recs",
+    icon: (
+      <NavIcon d="M3 6l3 3-3 3 M9 12h12 M3 18h12" />
+    ),
+  },
+  {
     id: "watchlist",
     label: "Watchlist",
     icon: (
