@@ -83,9 +83,10 @@ function evaluateAutoSells(
     if (rec.action === "HOLD") continue;
 
     // Auto-sell on critical/high urgency, or medium urgency for TP/SL/trend reversal
+    // PROFIT_STEP is informational only — never auto-sell
     const shouldSell =
-      rec.urgency === "critical" ||
-      rec.urgency === "high" ||
+      (rec.urgency === "critical" || rec.urgency === "high") &&
+      rec.action !== "PROFIT_STEP" ||
       (rec.urgency === "medium" && (
         rec.action === "TAKE_PROFIT" ||
         rec.action === "STOP_LOSS" ||

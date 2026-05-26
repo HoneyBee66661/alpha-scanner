@@ -6,9 +6,10 @@ interface Props {
   loading: boolean;
   onBuy?: (symbol: string) => void;
   onTokenClick?: (symbol: string) => void;
+  onBacktest?: (symbol: string) => void;
 }
 
-export default function BuyRecommendations({ tokens, loading, onBuy, onTokenClick }: Props) {
+export default function BuyRecommendations({ tokens, loading, onBuy, onTokenClick, onBacktest }: Props) {
   const recs = getTopBuyRecommendations(tokens);
 
   if (!loading && tokens.length === 0) {
@@ -50,7 +51,7 @@ export default function BuyRecommendations({ tokens, loading, onBuy, onTokenClic
                 <th className="px-3 py-2 text-right">Score</th>
                 <th className="px-3 py-2 text-center">Signal</th>
                 <th className="px-3 py-2 text-left max-w-[200px]">Reason</th>
-                {onBuy && <th className="px-3 py-2 text-center w-12"></th>}
+                {(onBuy || onBacktest) && <th className="px-3 py-2 text-center w-20">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -100,15 +101,28 @@ export default function BuyRecommendations({ tokens, loading, onBuy, onTokenClic
                   <td className="px-3 py-1 text-label text-text-muted max-w-[200px] truncate" title={rec.reason}>
                     {rec.reason}
                   </td>
-                  {onBuy && (
+                  {(onBuy || onBacktest) && (
                     <td className="px-3 py-1 text-center">
-                      <button
-                        onClick={() => onBuy(rec.symbol + "USDT")}
-                        className="px-2 py-0.5 rounded text-label text-signal-green hover:bg-signal-greenBg transition-colors"
-                        title="Paper buy at current price"
-                      >
-                        Buy
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        {onBacktest && (
+                          <button
+                            onClick={() => onBacktest(rec.symbol + "USDT")}
+                            className="px-1.5 py-0.5 rounded text-[10px] text-text-muted hover:text-signal-blue hover:bg-white/5 transition-colors font-mono"
+                            title="Instant backtest"
+                          >
+                            BT
+                          </button>
+                        )}
+                        {onBuy && (
+                          <button
+                            onClick={() => onBuy(rec.symbol + "USDT")}
+                            className="px-2 py-0.5 rounded text-label text-signal-green hover:bg-signal-greenBg transition-colors"
+                            title="Paper buy at current price"
+                          >
+                            Buy
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>

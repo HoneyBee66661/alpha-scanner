@@ -9,7 +9,8 @@ export type SellAction =
   | "SCORE_DECAY"
   | "TIME_EXIT"
   | "TREND_REVERSAL"
-  | "VOLUME_DIVERGENCE";
+  | "VOLUME_DIVERGENCE"
+  | "PROFIT_STEP";
 
 export type Urgency = "none" | "low" | "medium" | "high" | "critical";
 
@@ -30,24 +31,32 @@ export interface BacktestHint {
 
 // ── Default (static) thresholds ──────────────────────────────────────────
 
+// 5% profit step thresholds for incremental take-profit alerts
+export const PROFIT_STEPS = [5, 10, 15, 20, 25, 30, 40, 50];
+
+// Stricter TP — alert at every 5% increment to avoid rugpull
 const TP_TARGETS: { threshold: number; urgency: Urgency }[] = [
-  { threshold: 25, urgency: "critical" },
-  { threshold: 20, urgency: "high" },
-  { threshold: 10, urgency: "medium" },
   { threshold: 5, urgency: "low" },
-];
-
-const SL_LEVELS: { threshold: number; urgency: Urgency }[] = [
-  { threshold: -15, urgency: "critical" },
-  { threshold: -7, urgency: "high" },
-  { threshold: -4, urgency: "medium" },
-  { threshold: -2, urgency: "low" },
-];
-
-const DECAY_LEVELS: { threshold: number; urgency: Urgency }[] = [
-  { threshold: 35, urgency: "critical" },
-  { threshold: 20, urgency: "high" },
   { threshold: 10, urgency: "medium" },
+  { threshold: 15, urgency: "medium" },
+  { threshold: 20, urgency: "high" },
+  { threshold: 25, urgency: "high" },
+  { threshold: 30, urgency: "critical" },
+];
+
+// Tighter SL — strict risk management
+const SL_LEVELS: { threshold: number; urgency: Urgency }[] = [
+  { threshold: -10, urgency: "critical" },
+  { threshold: -5, urgency: "high" },
+  { threshold: -3, urgency: "medium" },
+  { threshold: -1.5, urgency: "low" },
+];
+
+// Stricter decay detection — alert sooner when score drops
+const DECAY_LEVELS: { threshold: number; urgency: Urgency }[] = [
+  { threshold: 25, urgency: "critical" },
+  { threshold: 15, urgency: "high" },
+  { threshold: 8, urgency: "medium" },
 ];
 
 const MAX_HOLD_HOURS = 240; // 10 days
@@ -153,7 +162,9 @@ export function getSellRecommendation(
   currentPrice: number,
   currentScores?: Scores,
   backtestHint?: BacktestHint,
-  ohlcv?: { open: number; high: number; low: number; close: number; volume: number }[]
+  ohlcv?: { open: number; high: number; low: number; close: number; volume: number }[],
+  /** Last 5% profit step already alerted (0 = none). Avoids re-alerting. */
+  lastProfitStep?: number
 ): SellRecommendation {
   const pctChange = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100;
   const hoursHeld = (Date.now() - trade.timestamp) / (1000 * 60 * 60);
@@ -162,7 +173,7 @@ export function getSellRecommendation(
   const slLevels = adjustedSLLevels(backtestHint);
   const market = evaluateMarketContext(trade, currentPrice, ohlcv);
 
-  // ── Critical: stop loss ───────────────────────────────────────────
+  // ── Stop loss (strict — highest priority) ─────────────────────────
   for (const sl of slLevels) {
     if (pctChange <= sl.threshold) {
       return {
@@ -175,8 +186,35 @@ export function getSellRecommendation(
     }
   }
 
+  // ── 5% profit step alert (incremental take-profit) ──────────────
+  // Check the NEXT profit step > lastProfitStep
+  if (lastProfitStep !== undefined) {
+    const nextStep = PROFIT_STEPS.find((s) => s > lastProfitStep);
+    if (nextStep && pctChange >= nextStep) {
+      return {
+        action: "PROFIT_STEP",
+        reason: `+${nextStep}% profit tier reached (${pctChange.toFixed(1)}%) — consider scaling out`,
+        urgency: nextStep >= 15 ? "medium" : "low",
+        pctChange,
+        hoursHeld,
+      };
+    }
+  } else {
+    // No tracking — alert on the first step reached
+    const reached = PROFIT_STEPS.find((s) => pctChange >= s);
+    if (reached) {
+      return {
+        action: "PROFIT_STEP",
+        reason: `+${reached}% profit reached (${pctChange.toFixed(1)}%) — secure gains`,
+        urgency: reached >= 15 ? "medium" : "low",
+        pctChange,
+        hoursHeld,
+      };
+    }
+  }
+
   // ── Trend reversal: market turning against position ───────────────
-  if (market.trendAgainstPosition && pctChange < -1) {
+  if (market.trendAgainstPosition && pctChange < 0) {
     return {
       action: "TREND_REVERSAL",
       reason: `Trend reversed against position (trend: ${market.trend}, price: ${pctChange.toFixed(1)}%)`,
@@ -187,7 +225,7 @@ export function getSellRecommendation(
   }
 
   // ── Volume divergence: high volume + price stalling / dropping ────
-  if (market.relativeVolume > 2.0 && pctChange < 0) {
+  if (market.relativeVolume > 1.8 && pctChange < 0) {
     return {
       action: "VOLUME_DIVERGENCE",
       reason: `High volume (${market.relativeVolume.toFixed(1)}x avg) with declining price — distribution`,
@@ -197,7 +235,7 @@ export function getSellRecommendation(
     };
   }
 
-  // ── Take profit ──────────────────────────────────────────────────
+  // ── Take profit (full TP targets as safety net) ──────────────────
   for (const tp of tpTargets) {
     if (pctChange >= tp.threshold) {
       return {
@@ -322,9 +360,34 @@ export function rankSellRecommendations(
 
 // ── Display helpers ──────────────────────────────────────────────────────
 
+/**
+ * Get the highest 5% profit step reached (0 = none).
+ * Returns: 0, 5, 10, 15, 20, 25, 30, 40, 50
+ */
+export function getProfitStep(pctChange: number): number {
+  // Check in reverse so we return the highest step reached
+  const steps = [...PROFIT_STEPS].reverse();
+  for (const step of steps) {
+    if (pctChange >= step) return step;
+  }
+  return 0;
+}
+
+/**
+ * Check if a new 5% profit step has been reached vs last alerted step.
+ */
+export function hasNewProfitStep(pctChange: number, lastAlertedStep: number): number | null {
+  const currentStep = getProfitStep(pctChange);
+  if (currentStep > 0 && currentStep > lastAlertedStep) {
+    return currentStep;
+  }
+  return null;
+}
+
 export function recommendationColor(action: SellAction): string {
   switch (action) {
     case "TAKE_PROFIT":
+    case "PROFIT_STEP":
       return "text-signal-green";
     case "STOP_LOSS":
     case "SCORE_DECAY":
@@ -342,6 +405,7 @@ export function recommendationColor(action: SellAction): string {
 export function recommendationBg(action: SellAction): string {
   switch (action) {
     case "TAKE_PROFIT":
+    case "PROFIT_STEP":
       return "bg-signal-greenBg";
     case "STOP_LOSS":
     case "SCORE_DECAY":
@@ -364,6 +428,7 @@ export function recLabel(action: SellAction): string {
     case "TIME_EXIT": return "EXIT";
     case "TREND_REVERSAL": return "TREND";
     case "VOLUME_DIVERGENCE": return "VOL DIV";
+    case "PROFIT_STEP": return "PROFIT+";
     default: return "HOLD";
   }
 }

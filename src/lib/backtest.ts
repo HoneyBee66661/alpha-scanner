@@ -10,6 +10,14 @@ interface OHLCVWithScores extends OHLCV {
 
 export type ScoreModel = "momentum" | "smartMoney" | "structure" | "accumulation" | "consensus";
 
+export const MODEL_LABELS: Record<ScoreModel, string> = {
+  momentum: "Momentum",
+  smartMoney: "Smart $",
+  structure: "Structure",
+  accumulation: "Accum",
+  consensus: "Consensus",
+};
+
 export interface BacktestParams {
   model: ScoreModel;
   thresholds: number[];
@@ -137,7 +145,7 @@ export function backtestAllModels(
 }
 
 export function buildBacktestCandles(
-  tokens: { symbol: string; ohlcv: OHLCV[]; momentum: number; smartMoney: number; structure: number; accumulation: number; consensus: number }[]
+  tokens: { symbol: string; ohlcv: OHLCV[]; momentum: number; smartMoney: number; structure: number; accumulation: number; sentiment: number; mmFootprint: number; consensus: number }[]
 ): { symbol: string; ohlcv: OHLCVWithScores[] }[] {
   return tokens.map((t) => ({
     symbol: t.symbol,
@@ -150,4 +158,59 @@ export function buildBacktestCandles(
       consensus: t.consensus,
     })),
   }));
+}
+
+export interface SingleTokenBacktestResult {
+  symbol: string;
+  score: number;
+  results: ThresholdResult[];
+}
+
+/**
+ * Run instant backtest for a single token across all models.
+ * Uses the full OHLCV history with current scores projected across all candles.
+ * Returns best threshold result per model for compact display.
+ */
+export function backtestSingleToken(
+  symbol: string,
+  ohlcv: OHLCV[],
+  momentum: number,
+  smartMoney: number,
+  structure: number,
+  accumulation: number,
+  consensus: number
+): SingleTokenBacktestResult {
+  if (!ohlcv || ohlcv.length < 10) {
+    return { symbol, score: consensus, results: [] };
+  }
+
+  const models: ScoreModel[] = ["momentum", "smartMoney", "structure", "accumulation", "consensus"];
+  const thresholds = [60, 70, 75, 80, 85, 90];
+  const holdPeriods = [1, 3, 6, 12, 24];
+  const allResults: ThresholdResult[] = [];
+
+  // Build candles with current scores projected across all historical data
+  const scoredCandles: OHLCVWithScores[] = ohlcv.map((c) => ({
+    ...c,
+    momentum,
+    smartMoney,
+    structure,
+    accumulation,
+    consensus,
+  }));
+
+  for (const model of models) {
+    const result = runBacktest(scoredCandles, { model, thresholds, holdPeriods });
+    for (const tr of result.thresholdResults) {
+      if (tr.trades > 0) {
+        allResults.push({ ...tr });
+      }
+    }
+  }
+
+  return {
+    symbol,
+    score: consensus,
+    results: allResults.slice(0, 20),
+  };
 }

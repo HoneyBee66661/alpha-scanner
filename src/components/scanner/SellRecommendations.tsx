@@ -14,9 +14,10 @@ interface Props {
   scores: Map<string, { momentum: number; smartMoney: number; structure: number; accumulation: number; sentiment: number; mmFootprint: number; consensus: number }>;
   settings: UserSettings;
   onSell: (trade: PaperTrade, rec: SellRecommendation, currentPrice: number) => void;
+  onBacktest?: (symbol: string) => void;
 }
 
-export default function SellRecommendations({ trades, prices, scores, settings, onSell }: Props) {
+export default function SellRecommendations({ trades, prices, scores, settings, onSell, onBacktest }: Props) {
   const ranked: RankedSell[] = rankSellRecommendations(trades, prices, scores);
 
   // Count urgent sells (critical + high)
@@ -64,7 +65,7 @@ export default function SellRecommendations({ trades, prices, scores, settings, 
               <th className="px-3 py-2 text-center">Urgency</th>
               <th className="px-3 py-2 text-center">Signal</th>
               <th className="px-3 py-2 text-left max-w-[200px]">Reason</th>
-              <th className="px-3 py-2 text-center w-14">Action</th>
+              <th className="px-3 py-2 text-center w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -130,19 +131,30 @@ export default function SellRecommendations({ trades, prices, scores, settings, 
                     {recommendation.reason}
                   </td>
                   <td className="px-3 py-1 text-center">
-                    {recommendation.action !== "HOLD" && (
-                      <button
-                        onClick={() => onSell(trade, recommendation, currentPrice)}
-                        className={`px-2 py-0.5 rounded text-label font-semibold transition-colors ${
-                          isUrgent
-                            ? "text-white bg-signal-red hover:bg-signal-red/80"
-                            : "text-signal-yellow hover:bg-signal-yellowBg"
-                        }`}
-                        title="Execute sell"
-                      >
-                        Sell
-                      </button>
-                    )}
+                    <div className="flex items-center justify-center gap-1">
+                      {onBacktest && (
+                        <button
+                          onClick={() => onBacktest(trade.symbol)}
+                          className="px-1.5 py-0.5 rounded text-[10px] text-text-muted hover:text-signal-blue hover:bg-white/5 transition-colors font-mono"
+                          title="Instant backtest for this token"
+                        >
+                          BT
+                        </button>
+                      )}
+                      {recommendation.action !== "HOLD" && (
+                        <button
+                          onClick={() => onSell(trade, recommendation, currentPrice)}
+                          className={`px-2 py-0.5 rounded text-label font-semibold transition-colors ${
+                            isUrgent
+                              ? "text-white bg-signal-red hover:bg-signal-red/80"
+                              : "text-signal-yellow hover:bg-signal-yellowBg"
+                          }`}
+                          title="Execute sell"
+                        >
+                          Sell
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

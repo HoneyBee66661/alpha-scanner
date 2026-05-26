@@ -13,9 +13,10 @@ interface Props {
   onBuy?: (symbol: string) => void;
   onToggleWatchlist?: (symbol: string) => void;
   onTokenClick?: (symbol: string) => void;
+  onBacktest?: (symbol: string) => void;
 }
 
-export default function ScannerTable({ tokens, loading, highlightScore, watchlist, onBuy, onToggleWatchlist, onTokenClick }: Props) {
+export default function ScannerTable({ tokens, loading, highlightScore, watchlist, onBuy, onToggleWatchlist, onTokenClick, onBacktest }: Props) {
   const [sort, setSort] = useState<SortColumn>("consensus");
   const [dir, setDir] = useState<SortDirection>("desc");
   const [search, setSearch] = useState("");
@@ -136,7 +137,7 @@ export default function ScannerTable({ tokens, loading, highlightScore, watchlis
                   </th>
                 ))}
                 <th className="px-3 py-2 text-left">Tags</th>
-                {onBuy && <th className="px-3 py-2 text-center w-12"></th>}
+                {onBuy && <th className="px-3 py-2 text-center w-20">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -198,15 +199,28 @@ export default function ScannerTable({ tokens, loading, highlightScore, watchlis
                   <td className="px-3 py-1">
                     <SignalTags tags={token.tags} />
                   </td>
-                  {onBuy && (
+                  {(onBuy || onBacktest) && (
                     <td className="px-3 py-1 text-center">
-                      <button
-                        onClick={() => onBuy(token.symbol)}
-                        className="px-2 py-0.5 rounded text-label text-signal-green hover:bg-signal-greenBg transition-colors"
-                        title="Simulate paper buy at current price"
-                      >
-                        Buy
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        {onBacktest && (
+                          <button
+                            onClick={() => onBacktest(token.symbol)}
+                            className="px-1.5 py-0.5 rounded text-[10px] text-text-muted hover:text-signal-blue hover:bg-white/5 transition-colors font-mono"
+                            title="Instant backtest for this token"
+                          >
+                            BT
+                          </button>
+                        )}
+                        {onBuy && (
+                          <button
+                            onClick={() => onBuy(token.symbol)}
+                            className="px-2 py-0.5 rounded text-label text-signal-green hover:bg-signal-greenBg transition-colors"
+                            title="Simulate paper buy at current price"
+                          >
+                            Buy
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>

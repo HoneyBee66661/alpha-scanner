@@ -29,6 +29,7 @@ import SignalLogViewer from "./components/analytics/SignalLog";
 import SignalAnalytics from "./components/analytics/SignalAnalytics";
 import BacktestPanel from "./components/analytics/BacktestPanel";
 import TokenDetailModal from "./components/scanner/TokenDetailModal";
+import BacktestPopup from "./components/analytics/BacktestPopup";
 import WatchlistPanel from "./components/scanner/WatchlistPanel";
 import SellRecommendations from "./components/scanner/SellRecommendations";
 import SettingsDrawer from "./components/settings/SettingsDrawer";
@@ -39,7 +40,7 @@ import { sendTelegramAlert, formatTradeAlert } from "./lib/telegram";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { runAutoTrader } from "./lib/autoTrader";
 import type { SellRecommendation } from "./lib/sellRecommendation";
-import { rankSellRecommendations } from "./lib/sellRecommendation";
+import { rankSellRecommendations, getProfitStep } from "./lib/sellRecommendation";
 import { getBuyRecommendation } from "./lib/buyRecommendation";
 import { backtestAllModels, buildBacktestCandles } from "./lib/backtest";
 import { useAuth } from "./hooks/useAuth";
@@ -110,6 +111,7 @@ export default function App() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
+  const [backtestToken, setBacktestToken] = useState<string | null>(null);
 
   const [watchlist, setWatchlist] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem("ascan_watchlist") ?? "[]"); }
@@ -268,6 +270,9 @@ export default function App() {
         STOP_LOSS: "AUTO_SL",
         SCORE_DECAY: "AUTO_DECAY",
         TIME_EXIT: "AUTO_TIME",
+        TREND_REVERSAL: "AUTO_SELL",
+        VOLUME_DIVERGENCE: "AUTO_SELL",
+        PROFIT_STEP: "AUTO_TP",
       };
       closedTradesList.push({
         id: trade.id,
@@ -360,29 +365,54 @@ export default function App() {
     }
   }, [lastRefresh, settings.autoTradeEnabled, dbReady, loading]);
 
-  // Telegram recommendation alerts: send periodic summary of buy/sell opportunities
+  // Telegram recommendation alerts: periodic summary of buy/sell opportunities
   const lastRecommendationAlert = useRef<number | null>(null);
+  // Track last alerted profit step per symbol (keyed by symbol, value = highest step alerted)
+  const profitStepsAlerted = useRef<Map<string, number>>(new Map());
   useEffect(() => {
     if (!settings.telegramBotToken || !settings.telegramChatId) return;
     if (!dbReady || loading || lastRefresh == null) return;
     if (lastRefresh === lastRecommendationAlert.current) return;
-    // Only alert if at least 30 min has passed since last alert
-    if (lastRecommendationAlert.current && Date.now() - lastRecommendationAlert.current < 30 * 60 * 1000) return;
+    // Only alert if at least 15 min has passed since last alert (faster for profit steps)
+    if (lastRecommendationAlert.current && Date.now() - lastRecommendationAlert.current < 15 * 60 * 1000) return;
     lastRecommendationAlert.current = Date.now();
 
-    // Top buy opportunities
+    // ── BUY SIGNALS: scan entire token list ──────────────────────────
     const buyCandidates = tokens
       .map((t) => ({ token: t, rec: getBuyRecommendation(t) }))
       .filter(({ rec }) => rec.action === "STRONG_BUY" || rec.action === "BUY")
       .sort((a, b) => b.rec.score - a.rec.score)
-      .slice(0, 5);
+      .slice(0, 10);
 
-    // Top sell opportunities
+    // ── SELL SIGNALS: portfolio only with strict risk ────────────────
     const sellCandidates = rankSellRecommendations(trades, priceMap, scoreMap)
       .filter((r) => r.recommendation.action !== "HOLD")
-      .slice(0, 5);
+      .slice(0, 10);
 
-    if (buyCandidates.length === 0 && sellCandidates.length === 0) return;
+    // ── PROFIT STEP CHECK: detect new 5% increments ──────────────────
+    const profitStepAlerts: { symbol: string; step: number; pctChange: number; pnl: string }[] = [];
+    for (const trade of trades) {
+      const currentPrice = priceMap.get(trade.symbol) ?? trade.entryPrice;
+      const pctChange = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100;
+      const lastAlerted = profitStepsAlerted.current.get(trade.symbol) ?? 0;
+      const newStep = getProfitStep(pctChange);
+      if (newStep > 0 && newStep > lastAlerted) {
+        const pnl = ((currentPrice - trade.entryPrice) * trade.quantity).toFixed(2);
+        profitStepAlerts.push({ symbol: trade.symbol, step: newStep, pctChange, pnl });
+        profitStepsAlerted.current.set(trade.symbol, newStep);
+      }
+    }
+
+    // ── SEPARATE RISK ALERTS (SL / trend reversal / decay) ────────────
+    const riskAlerts = sellCandidates.filter(
+      (r) => r.recommendation.action === "STOP_LOSS" ||
+             r.recommendation.action === "TREND_REVERSAL" ||
+             r.recommendation.action === "SCORE_DECAY" ||
+             r.recommendation.urgency === "critical" ||
+             r.recommendation.urgency === "high"
+    );
+
+    if (buyCandidates.length === 0 && sellCandidates.length === 0 && profitStepAlerts.length === 0) return;
 
     const lines: string[] = [
       `<b>🔍 Alpha Scanner Report</b>`,
@@ -390,26 +420,56 @@ export default function App() {
       ``,
     ];
 
+    // ── RISK ALERTS (always first) ──────────────────────────────────
+    if (riskAlerts.length > 0) {
+      lines.push(`<b>🚨 RISK ALERTS — PORTFOLIO</b>`);
+      for (const { trade, recommendation, currentPrice } of riskAlerts) {
+        const pnl = ((currentPrice - trade.entryPrice) * trade.quantity).toFixed(2);
+        const emoji = recommendation.action === "STOP_LOSS" ? "🛑" : recommendation.action === "TREND_REVERSAL" ? "⚠️" : "📉";
+        lines.push(`  ${emoji} ${trade.symbol.replace("USDT", "")} · ${recommendation.action} · ${recommendation.reason} · P&L $${pnl}`);
+      }
+      lines.push(``);
+    }
+
+    // ── PROFIT STEP ALERTS ──────────────────────────────────────────
+    if (profitStepAlerts.length > 0) {
+      lines.push(`<b>💰 PROFIT TIERS REACHED — PORTFOLIO</b>`);
+      for (const ps of profitStepAlerts) {
+        lines.push(`  🟢 ${ps.symbol.replace("USDT", "")} · +${ps.step}% tier · currently +${ps.pctChange.toFixed(1)}% · P&L $${ps.pnl}`);
+      }
+      lines.push(`  <i>Consider scaling out at each tier to lock gains</i>`);
+      lines.push(``);
+    }
+
     if (buyCandidates.length > 0) {
-      lines.push(`<b>🟢 TOP BUY SIGNALS</b>`);
+      lines.push(`<b>🟢 BUY SIGNALS — MARKET SCAN</b>`);
       for (const { token, rec } of buyCandidates) {
         lines.push(`  ${token.symbol.replace("USDT", "")} · Score ${rec.score} · ${rec.reason}`);
       }
       lines.push(``);
     }
 
-    if (sellCandidates.length > 0) {
-      lines.push(`<b>🔴 TOP SELL SIGNALS</b>`);
-      for (const { trade, recommendation, currentPrice } of sellCandidates) {
+    // ── SELL SIGNALS (non-risk, non-profit-step — e.g. TP, time exit) ──
+    const otherSells = sellCandidates.filter(
+      (r) => r.recommendation.action !== "STOP_LOSS" &&
+             r.recommendation.action !== "TREND_REVERSAL" &&
+             r.recommendation.action !== "SCORE_DECAY" &&
+             r.recommendation.urgency !== "critical" &&
+             r.recommendation.urgency !== "high"
+    );
+    if (otherSells.length > 0) {
+      lines.push(`<b>🔴 OTHER SELL SIGNALS — PORTFOLIO</b>`);
+      for (const { trade, recommendation, currentPrice } of otherSells) {
         const pnl = ((currentPrice - trade.entryPrice) * trade.quantity).toFixed(2);
-        lines.push(`  ${trade.symbol.replace("USDT", "")} · ${recommendation.action} · ${recommendation.urgency} urgency · P&L $${pnl}`);
+        lines.push(`  ${trade.symbol.replace("USDT", "")} · ${recommendation.action} · P&L $${pnl} · ${recommendation.reason}`);
       }
       lines.push(``);
     }
 
-    // Backtest snippet: best performing model
+    // Backtest snippet: run against portfolio tokens only
     try {
-      const btTokens = tokens.filter((t) => t.ohlcv && t.ohlcv.length > 10);
+      const heldSymbols = new Set(trades.map((t) => t.symbol));
+      const btTokens = tokens.filter((t) => heldSymbols.has(t.symbol) && t.ohlcv && t.ohlcv.length > 10);
       if (btTokens.length > 0) {
         const btResults = backtestAllModels(
           buildBacktestCandles(
@@ -420,6 +480,8 @@ export default function App() {
               smartMoney: t.smartMoney,
               structure: t.structure,
               accumulation: t.accumulation,
+              sentiment: t.sentiment,
+              mmFootprint: t.mmFootprint,
               consensus: t.consensus,
             }))
           )
@@ -433,8 +495,8 @@ export default function App() {
           if (best) {
             const bestThreshold = best.thresholdResults.sort((a, b) => b.winRate - a.winRate)[0];
             if (bestThreshold && bestThreshold.trades > 0) {
-              lines.push(`<b>Backtest Insight</b>`);
-              lines.push(`  Best model: ${best.model} · ${bestThreshold.winRate}% win rate (threshold ${bestThreshold.threshold})`);
+              lines.push(`<b>Portfolio Backtest Insight</b>`);
+              lines.push(`  Model: ${best.model} · ${bestThreshold.winRate}% win rate (threshold ${bestThreshold.threshold}) on ${btTokens.length} portfolio tokens`);
               lines.push(``);
             }
           }
@@ -560,6 +622,7 @@ export default function App() {
       TIME_EXIT: "AUTO_TIME",
       TREND_REVERSAL: "AUTO_SELL",
       VOLUME_DIVERGENCE: "AUTO_SELL",
+      PROFIT_STEP: "AUTO_TP",
     };
 
     const closed: ClosedTrade = {
@@ -711,6 +774,7 @@ export default function App() {
               onBuy={handlePaperBuy}
               onToggleWatchlist={toggleWatchlist}
               onTokenClick={setSelectedToken}
+              onBacktest={setBacktestToken}
             />
           )}
           {view === "buy-recs" && (
@@ -719,6 +783,7 @@ export default function App() {
               loading={loading}
               onBuy={handlePaperBuy}
               onTokenClick={setSelectedToken}
+              onBacktest={(s) => setBacktestToken(s)}
             />
           )}
           {view === "sell-recs" && (
@@ -728,6 +793,7 @@ export default function App() {
               scores={scoreMap}
               settings={settings}
               onSell={handleSell}
+              onBacktest={(s) => setBacktestToken(s)}
             />
           )}
           {view === "watchlist" && (
@@ -778,6 +844,27 @@ export default function App() {
           <TokenDetailModal
             token={token}
             onClose={() => setSelectedToken(null)}
+          />
+        );
+      })()}
+
+      {backtestToken && (() => {
+        const token = tokens.find((t) => t.symbol === backtestToken);
+        if (!token || !token.ohlcv) return null;
+        return (
+          <BacktestPopup
+            symbol={token.symbol}
+            ohlcv={token.ohlcv}
+            scores={{
+              momentum: token.momentum,
+              smartMoney: token.smartMoney,
+              structure: token.structure,
+              accumulation: token.accumulation,
+              sentiment: token.sentiment,
+              mmFootprint: token.mmFootprint,
+              consensus: token.consensus,
+            }}
+            onClose={() => setBacktestToken(null)}
           />
         );
       })()}

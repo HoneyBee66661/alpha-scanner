@@ -1,19 +1,11 @@
 import { useMemo } from "react";
 import type { TokenRow } from "../../types";
-import { backtestAllModels, buildBacktestCandles } from "../../lib/backtest";
+import { backtestAllModels, buildBacktestCandles, MODEL_LABELS } from "../../lib/backtest";
 import type { BacktestResult, ScoreModel } from "../../lib/backtest";
 
 interface Props {
   tokens: TokenRow[];
 }
-
-const MODEL_LABELS: Record<ScoreModel, string> = {
-  momentum: "Momentum",
-  smartMoney: "Smart Money",
-  structure: "Structure",
-  accumulation: "Accumulation",
-  consensus: "Consensus",
-};
 
 export default function BacktestPanel({ tokens }: Props) {
   const results = useMemo(() => {
