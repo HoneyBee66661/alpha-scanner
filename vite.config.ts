@@ -7,4 +7,16 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 3000,
   },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          supabase: ["@supabase/supabase-js"],
+          charts: ["lightweight-charts"],
+        },
+      },
+    },
+  },
 });
