@@ -32,6 +32,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (BOT_TOKEN && CHAT_ID) {
         await sendTelegramAlert(BOT_TOKEN, CHAT_ID, lines.join("\n"));
       }
+      // Record mock-data run
+      try {
+        const { supabase } = await import("./_supabase");
+        await supabase.from("cron_status").upsert(
+          { id: 1, last_run_at: new Date().toISOString(), status: "mock", tokens_scanned: 0, strong_buys: 0, error: result.error ?? null },
+          { onConflict: "id" }
+        );
+      } catch (_dbErr) { /* non-critical */ }
       return res.status(200).json({ ok: true, mock: true, tokens: 0 });
     }
 
@@ -73,6 +81,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await sendTelegramAlert(BOT_TOKEN, CHAT_ID, lines.join("\n"));
     }
 
+    // Record successful run in Supabase
+    try {
+      const { supabase } = await import("./_supabase");
+      await supabase.from("cron_status").upsert(
+        {
+          id: 1,
+          last_run_at: new Date().toISOString(),
+          status: "success",
+          tokens_scanned: tokens.length,
+          strong_buys: strongBuys.length,
+          error: null,
+        },
+        { onConflict: "id" }
+      );
+    } catch (_dbErr) {
+      // Non-critical — don't break the response
+    }
+
     return res.status(200).json({
       ok: true,
       tokensScanned: tokens.length,
@@ -82,6 +108,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("Cron scan error:", msg);
+
+    // Record failed run
+    try {
+      const { supabase } = await import("./_supabase");
+      await supabase.from("cron_status").upsert(
+        {
+          id: 1,
+          last_run_at: new Date().toISOString(),
+          status: "error",
+          tokens_scanned: 0,
+          strong_buys: 0,
+          error: msg,
+        },
+        { onConflict: "id" }
+      );
+    } catch (_dbErr) {
+      // Non-critical
+    }
+
     // Return 200 so cron-job.org doesn't keep retrying
     return res.status(200).json({ ok: false, error: msg });
   }

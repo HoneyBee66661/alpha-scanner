@@ -110,6 +110,15 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [cronStatus, setCronStatus] = useState<{
+    last_run_at: string;
+    status: string;
+    tokens_scanned: number;
+    strong_buys: number;
+  } | null>(null);
+  const [cronError, setCronError] = useState(false);
+  const cronInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const [backtestToken, setBacktestToken] = useState<string | null>(null);
 
@@ -193,6 +202,32 @@ export default function App() {
     ]).catch(() => {
       // Supabase unreachable — keep localStorage values
     }).finally(() => setDbReady(true));
+  }, []);
+
+  // Poll cron job status every 60 seconds
+  useEffect(() => {
+    async function fetchCronStatus() {
+      try {
+        const res = await fetch("/api/cron-status");
+        const json = await res.json();
+        if (json.ok && json.data) {
+          setCronStatus(json.data);
+          setCronError(false);
+        } else if (json.ok && !json.data) {
+          setCronStatus(null);
+          setCronError(false);
+        } else {
+          setCronError(true);
+        }
+      } catch {
+        setCronError(true);
+      }
+    }
+    fetchCronStatus();
+    cronInterval.current = setInterval(fetchCronStatus, 60_000);
+    return () => {
+      if (cronInterval.current) clearInterval(cronInterval.current);
+    };
   }, []);
 
   function handleSourceChange(source: DataSource) {
@@ -681,6 +716,15 @@ export default function App() {
     auto: "Auto",
   };
 
+  function formatCronTime(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(diff / 60_000);
+    if (min < 1) return "now";
+    if (min < 60) return `${min}m ago`;
+    const hrs = Math.floor(min / 60);
+    return `${hrs}h${min % 60 > 0 ? `${min % 60}m` : ""} ago`;
+  }
+
   async function handleSignOut() {
     await signOut();
     // Clear guest session data
@@ -734,6 +778,15 @@ export default function App() {
             { label: "Tokens", value: String(tokens.length) },
             { label: "24h Vol", value: `$${(totalVol / 1e9).toFixed(2)}B` },
             { label: "Signals > 85", value: String(tokens.filter((t) => t.consensus >= 85).length) },
+            {
+              label: "Cron",
+              value: cronError ? "?" : cronStatus ? formatCronTime(cronStatus.last_run_at) : "—",
+              valueClass: cronError
+                ? "text-signal-red"
+                : cronStatus && Date.now() - new Date(cronStatus.last_run_at).getTime() > 30 * 60_000
+                  ? "text-signal-yellow"
+                  : "text-signal-green",
+            },
           ]}
         />
 
