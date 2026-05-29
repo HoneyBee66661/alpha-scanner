@@ -3,5 +3,10 @@
     "deploymentEnabled": {
       "main": true
     }
+  },
+  "functions": {
+    "api/*.ts": {
+      "maxDuration": 10
+    }
   }
 }
