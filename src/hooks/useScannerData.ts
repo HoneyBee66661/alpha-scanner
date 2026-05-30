@@ -13,7 +13,7 @@ export function useScannerData() {
   const errorRef = useRef<string | null>(null);
   const isMockRef = useRef(false);
   const sourceRef = useRef<DataSource>(loadSourcePreference());
-  const activeSourceRef = useRef<DataSource>("auto");
+  const activeSourceRef = useRef<DataSource>("binance");
 
   function subscribe(fn: () => void) {
     listenersRef.current.add(fn);

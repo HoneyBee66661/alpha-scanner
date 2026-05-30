@@ -28,6 +28,7 @@ import PaperPortfolio from "./components/paper/PaperPortfolio";
 import SignalLogViewer from "./components/analytics/SignalLog";
 import SignalAnalytics from "./components/analytics/SignalAnalytics";
 import BacktestPanel from "./components/analytics/BacktestPanel";
+import AIBenchmark from "./components/analytics/AIBenchmark";
 import TokenDetailModal from "./components/scanner/TokenDetailModal";
 import BacktestPopup from "./components/analytics/BacktestPopup";
 import WatchlistPanel from "./components/scanner/WatchlistPanel";
@@ -63,6 +64,10 @@ const defaultSettings: UserSettings = {
   autoTradeMaxPositions: 5,
   autoTradeBudgetPerTrade: 100,
   paperBalance: 10000,
+  aiTradeEnabled: false,
+  aiPaperBalance: 10000,
+  aiTradeMaxPositions: 5,
+  aiTradeBudgetPerTrade: 100,
 };
 
 export default function App() {
@@ -291,6 +296,7 @@ export default function App() {
         sentimentSnapshot: trade.sentimentSnapshot,
         consensusSnapshot: trade.consensusSnapshot,
         exitReason: exitReasonMap[recommendation.action] ?? "AUTO_SELL",
+        trader: trade.trader ?? "rules",
       });
 
       logEntries.push({
@@ -327,6 +333,7 @@ export default function App() {
         accumulationSnapshot: tokens.find((t) => t.symbol === symbol)?.accumulation ?? 0,
         sentimentSnapshot: tokens.find((t) => t.symbol === symbol)?.sentiment ?? 0,
         consensusSnapshot: tokens.find((t) => t.symbol === symbol)?.consensus ?? 0,
+        trader: "rules",
       };
       newTrades = [...newTrades, trade];
       if (isConfigured()) supabaseUpsertTrade(trade).catch(() => {});
@@ -549,6 +556,7 @@ export default function App() {
       accumulationSnapshot: token.accumulation,
       sentimentSnapshot: token.sentiment,
       consensusSnapshot: token.consensus,
+      trader: "rules",
     };
     setTrades((prev) => [...prev, trade]);
     setSettings((prev) => ({ ...prev, paperBalance: prev.paperBalance - cost }));
@@ -595,6 +603,7 @@ export default function App() {
         sentimentSnapshot: removed.sentimentSnapshot,
         consensusSnapshot: removed.consensusSnapshot,
         exitReason: "MANUAL",
+        trader: removed.trader ?? "rules",
       };
       setClosedTrades((prev) => [closed, ...prev]);
 
@@ -642,6 +651,7 @@ export default function App() {
       sentimentSnapshot: trade.sentimentSnapshot,
       consensusSnapshot: trade.consensusSnapshot,
       exitReason: exitReasonMap[rec.action] ?? "MANUAL",
+      trader: trade.trader ?? "rules",
     };
     setClosedTrades((prev) => [closed, ...prev]);
 
@@ -677,8 +687,6 @@ export default function App() {
 
   const sourceLabel: Record<string, string> = {
     binance: "Binance",
-    coingecko: "CoinGecko",
-    auto: "Auto",
   };
 
   async function handleSignOut() {
@@ -744,7 +752,7 @@ export default function App() {
               <span>
                 {fetchError
                   ? `${fetchError} Using simulated data.`
-                  : `Using simulated data — ${activeSource === "binance" ? "Binance" : activeSource === "coingecko" ? "CoinGecko" : "both APIs"} unreachable.`}
+                  : "Using simulated data — Binance unreachable."}
               </span>
               <button
                 onClick={() => scanner.refresh()}
@@ -824,6 +832,14 @@ export default function App() {
           )}
           {view === "signal-log" && (
             <SignalLogViewer entries={signalLog} />
+          )}
+          {view === "ai-benchmark" && (
+            <AIBenchmark
+              trades={trades}
+              closedTrades={closedTrades}
+              rulesBalance={settings.paperBalance}
+              aiBalance={settings.aiPaperBalance}
+            />
           )}
           {view === "backtest" && (
             <BacktestPanel tokens={tokens} />
