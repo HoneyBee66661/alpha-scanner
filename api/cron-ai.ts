@@ -1,3 +1,4 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { fetchFromSource } from "../src/lib/dataSource.js";
 import { runAITrader } from "../src/lib/aiTrader.js";
 import { sendTelegramAlert, formatTradeAlert } from "../src/lib/telegram.js";
@@ -41,7 +42,7 @@ function fromDbSettings(row: Record<string, unknown>): UserSettings {
 
 // ── Handler ────────────────────────────────────────────────────────────
 
-export default async function handler(request: Request): Promise<Response> {
+export default async function handler(_req: VercelRequest, res: VercelResponse) {
   const startedAt = Date.now();
 
   try {
@@ -55,32 +56,28 @@ export default async function handler(request: Request): Promise<Response> {
       .single();
 
     if (settingsErr || !settingsRow) {
-      return Response.json(
+      return res.json(
         { ok: false, reason: "settings not found" },
-        { status: 200 }
       );
     }
 
     const settings = fromDbSettings(settingsRow);
 
     if (!settings.aiTradeEnabled) {
-      return Response.json(
+      return res.json(
         { ok: false, reason: "AI trade disabled" },
-        { status: 200 }
       );
     }
 
     if (!deepseekApiKey) {
-      return Response.json(
+      return res.json(
         { ok: false, reason: "DEEPSEEK_API_KEY not set" },
-        { status: 200 }
       );
     }
 
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return Response.json(
+      return res.json(
         { ok: false, reason: "telegram not configured" },
-        { status: 200 }
       );
     }
 
@@ -91,9 +88,8 @@ export default async function handler(request: Request): Promise<Response> {
       .eq("trader", "ai");
 
     if (tradesErr) {
-      return Response.json(
+      return res.json(
         { ok: false, reason: `trades fetch failed: ${tradesErr.message}` },
-        { status: 200 }
       );
     }
 
@@ -257,7 +253,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     const elapsed = Date.now() - startedAt;
 
-    return Response.json({
+    return res.json({
       ok: true,
       source: "binance",
       trader: "ai",
@@ -273,6 +269,6 @@ export default async function handler(request: Request): Promise<Response> {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return Response.json({ ok: false, error: message }, { status: 200 });
+    return res.json({ ok: false, error: message }, { status: 200 });
   }
 }
