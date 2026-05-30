@@ -7,7 +7,7 @@
   "functions": {
     "api/*.ts": {
       "maxDuration": 30,
-      "includeFiles": "src/lib/**"
+      "includeFiles": "src/**"
     }
   }
 }
