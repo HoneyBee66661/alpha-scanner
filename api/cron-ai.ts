@@ -45,7 +45,6 @@ export default async function handler(request: Request): Promise<Response> {
   const startedAt = Date.now();
 
   try {
-    const supabase = supabase;
     const deepseekApiKey = process.env.DEEPSEEK_API_KEY || "";
 
     // 1. Load settings

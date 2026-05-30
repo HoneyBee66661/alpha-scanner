@@ -45,8 +45,6 @@ export default async function handler(request: Request): Promise<Response> {
   const startedAt = Date.now();
 
   try {
-    const supabase = supabase;
-
     // 1. Load settings
     const { data: settingsRow, error: settingsErr } = await supabase
       .from("user_settings")
