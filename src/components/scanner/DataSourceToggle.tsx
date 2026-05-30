@@ -8,9 +8,7 @@ interface Props {
 }
 
 const options: { value: DataSource; label: string }[] = [
-  { value: "auto", label: "Auto" },
   { value: "binance", label: "Binance" },
-  { value: "coingecko", label: "CoinGecko" },
 ];
 
 export default function DataSourceToggle({ value, onChange, activeSource, isMock }: Props) {

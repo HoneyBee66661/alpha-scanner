@@ -75,6 +75,13 @@ const navItems: { id: ScannerView; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
+    id: "ai-benchmark",
+    label: "AI Benchmark",
+    icon: (
+      <NavIcon d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z M9 8l6 4-6 4V8z" />
+    ),
+  },
+  {
     id: "signal-log",
     label: "Signal Log",
     icon: (

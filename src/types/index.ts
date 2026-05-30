@@ -60,6 +60,7 @@ export interface PaperTrade {
   accumulationSnapshot: number;
   sentimentSnapshot: number;
   consensusSnapshot: number;
+  trader: "ai" | "rules";
 }
 
 export interface Signal {
@@ -84,6 +85,10 @@ export interface UserSettings {
   autoTradeMaxPositions: number;
   autoTradeBudgetPerTrade: number;
   paperBalance: number;
+  aiTradeEnabled: boolean;
+  aiPaperBalance: number;
+  aiTradeMaxPositions: number;
+  aiTradeBudgetPerTrade: number;
 }
 
 export interface ClosedTrade {
@@ -103,6 +108,7 @@ export interface ClosedTrade {
   sentimentSnapshot: number;
   consensusSnapshot: number;
   exitReason: "MANUAL" | "AUTO_TP" | "AUTO_SL" | "AUTO_DECAY" | "AUTO_TIME" | "AUTO_SELL";
+  trader: "ai" | "rules";
 }
 
 export type SortColumn =
@@ -119,7 +125,7 @@ export type SortColumn =
 
 export type SortDirection = "asc" | "desc";
 
-export type ScannerView = "scanner" | "buy-recs" | "sell-recs" | "watchlist" | "smart-money" | "accumulation" | "portfolio" | "analytics" | "backtest" | "signal-log" | "settings" | "profile";
+export type ScannerView = "scanner" | "buy-recs" | "sell-recs" | "watchlist" | "smart-money" | "accumulation" | "portfolio" | "analytics" | "ai-benchmark" | "backtest" | "signal-log" | "settings" | "profile";
 
 export const STABLECOINS = new Set([
   "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDP", "USDD", "GUSD", "LUSD", "FRAX",

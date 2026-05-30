@@ -11,17 +11,17 @@ export interface BuyRecommendation {
 }
 
 const CONSENSUS_LEVELS: { threshold: number; urgency: BuyUrgency; action: BuyAction }[] = [
-  { threshold: 85, urgency: "high", action: "STRONG_BUY" },
-  { threshold: 75, urgency: "medium", action: "BUY" },
-  { threshold: 60, urgency: "low", action: "WATCH" },
+  { threshold: 78, urgency: "high", action: "STRONG_BUY" },
+  { threshold: 70, urgency: "medium", action: "BUY" },
+  { threshold: 55, urgency: "low", action: "WATCH" },
 ];
 
 export function getBuyRecommendation(token: TokenRow): BuyRecommendation {
   const { consensus, momentum, smartMoney, accumulation, priceChange24h, volume24h } = token;
 
   // Penalise tokens that have already pumped hard
-  const pumpPenalty = priceChange24h > 10 ? (priceChange24h - 10) * 2 : 0;
-  const pumpFlag = priceChange24h > 15;
+  const pumpPenalty = priceChange24h > 15 ? (priceChange24h - 15) * 3 : priceChange24h > 10 ? (priceChange24h - 10) * 1.5 : 0;
+  const pumpFlag = priceChange24h > 25;
 
   // Reward healthy volume (relative to typical — we infer from the consensus strength)
   const volBonus = volume24h > 1e9 ? 5 : volume24h > 5e8 ? 2 : 0;
@@ -53,7 +53,7 @@ export function getBuyRecommendation(token: TokenRow): BuyRecommendation {
   if (pumpFlag) {
     return {
       action: "AVOID",
-      reason: `Pumped ${priceChange24h.toFixed(1)}% in 24h — risk of pullback`,
+      reason: `Pumped ${priceChange24h.toFixed(1)}% in 24h — too extended`,
       urgency: "none",
       score,
     };

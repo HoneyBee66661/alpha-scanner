@@ -28,6 +28,7 @@ function toDbTrade(t: PaperTrade) {
     accumulation_snapshot: t.accumulationSnapshot,
     sentiment_snapshot: t.sentimentSnapshot,
     consensus_snapshot: t.consensusSnapshot,
+    trader: t.trader ?? "rules",
   };
 }
 
@@ -44,6 +45,7 @@ function fromDbTrade(row: Record<string, unknown>): PaperTrade {
     accumulationSnapshot: Number(row.accumulation_snapshot ?? 0),
     sentimentSnapshot: Number(row.sentiment_snapshot ?? 0),
     consensusSnapshot: Number(row.consensus_snapshot ?? 0),
+    trader: (row.trader as "ai" | "rules") ?? "rules",
   };
 }
 
@@ -59,6 +61,10 @@ function toDbSettings(s: UserSettings) {
     auto_trade_max_positions: s.autoTradeMaxPositions,
     auto_trade_budget_per_trade: s.autoTradeBudgetPerTrade,
     paper_balance: s.paperBalance,
+    ai_trade_enabled: s.aiTradeEnabled ?? false,
+    ai_paper_balance: s.aiPaperBalance ?? 10000,
+    ai_trade_max_positions: s.aiTradeMaxPositions ?? 5,
+    ai_trade_budget_per_trade: s.aiTradeBudgetPerTrade ?? 100,
   };
 }
 
@@ -73,6 +79,10 @@ function fromDbSettings(row: Record<string, unknown>): UserSettings {
     autoTradeMaxPositions: Number(row.auto_trade_max_positions ?? 5),
     autoTradeBudgetPerTrade: Number(row.auto_trade_budget_per_trade ?? 100),
     paperBalance: Number(row.paper_balance ?? 10000),
+    aiTradeEnabled: Boolean(row.ai_trade_enabled ?? false),
+    aiPaperBalance: Number(row.ai_paper_balance ?? 10000),
+    aiTradeMaxPositions: Number(row.ai_trade_max_positions ?? 5),
+    aiTradeBudgetPerTrade: Number(row.ai_trade_budget_per_trade ?? 100),
   };
 }
 
