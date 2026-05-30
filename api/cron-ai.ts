@@ -1,4 +1,4 @@
-import { fetchAllTokens } from "../src/lib/binance.js";
+import { fetchFromSource } from "../src/lib/dataSource.js";
 import { runAITrader } from "../src/lib/aiTrader.js";
 import { sendTelegramAlert, formatTradeAlert } from "../src/lib/telegram.js";
 import type { PaperTrade, UserSettings } from "../src/types/index.js";
@@ -99,17 +99,8 @@ export default async function handler(request: Request): Promise<Response> {
 
     const trades: PaperTrade[] = (tradesRows ?? []).map(fromDbTrade);
 
-    // 3. Fetch token data from Binance
-    let tokens;
-    try {
-      tokens = await fetchAllTokens();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return Response.json(
-        { ok: false, reason: `Binance fetch failed: ${message}` },
-        { status: 200 }
-      );
-    }
+    // 3. Fetch token data (falls back to mock data when Binance is unreachable)
+    const { tokens, isMock, error: sourceError } = await fetchFromSource("binance");
 
     tokens.sort((a, b) => a.symbol.localeCompare(b.symbol));
 
@@ -139,6 +130,18 @@ export default async function handler(request: Request): Promise<Response> {
         mmFootprint: t.mmFootprint,
         consensus: t.consensus,
       });
+    }
+
+    // Notify if using mock data
+    if (isMock && settings.telegramBotToken && settings.telegramChatId) {
+      const mockMsg = [
+        `<b> AI Bot — Using Mock Data</b>`,
+        `<b>Reason:</b> ${sourceError ?? "Binance unreachable from Vercel region"}`,
+        `<b>Tokens:</b> ${tokens.length} (simulated)`,
+        `<i>Trade signals will not reflect real market conditions</i>`,
+        `<i>Alpha Scanner · ${new Date().toLocaleString()}</i>`,
+      ].join("\n");
+      await sendTelegramAlert(settings.telegramBotToken, settings.telegramChatId, mockMsg);
     }
 
     // 5. Run AI trader
