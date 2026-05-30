@@ -80,12 +80,12 @@ export async function fetchAllTokens(): Promise<TokenRow[]> {
     return true;
   });
 
-  // Step 3: sort by quote volume descending, take top 300
+  // Step 3: sort by quote volume descending, take top 50
   const top = filtered
     .sort((a, b) => Number(b.quoteVolume ?? 0) - Number(a.quoteVolume ?? 0))
-    .slice(0, 300);
+    .slice(0, 50);
 
-  const batchSize = 15;
+  const batchSize = 25;
   const rows: TokenRow[] = [];
 
   for (let i = 0; i < top.length; i += batchSize) {
