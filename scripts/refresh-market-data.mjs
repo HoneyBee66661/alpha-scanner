@@ -1,68 +1,82 @@
 /**
- * Fetches market data from Binance API and stores in Supabase.
- * Standalone script with no project dependencies — runs on any Node.js.
+ * Fetches market data from CoinGecko API and stores in Supabase.
+ * Standalone script — runs on any Node.js with no external deps.
  *
  * Usage: node scripts/refresh-market-data.mjs
  * Env:  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
-const BINANCE_SPOT = "https://api.binance.com/api/v3";
-const FETCH_TIMEOUT = 15000;
+const CG_API = "https://api.coingecko.com/api/v3";
 
-async function fetchWithTimeout(url, ms = FETCH_TIMEOUT) {
+async function fetchWithTimeout(url, ms = 15000) {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);
   try {
-    const res = await fetch(url, { signal: ctrl.signal });
-    return res;
+    return await fetch(url, { signal: ctrl.signal });
   } finally {
     clearTimeout(id);
   }
 }
 
-async function fetchAllTokens() {
-  const tickerRes = await fetchWithTimeout(`${BINANCE_SPOT}/ticker/24hr`);
-  if (!tickerRes.ok) throw new Error(`Binance ticker failed: ${tickerRes.status}`);
-  const all = await tickerRes.json();
-  const STABLECOINS = new Set(["USDC", "USDT", "BUSD", "DAI", "FDUSD", "TUSD", "PAX", "USDP", "GUSD", "HUSD", "USDN", "FEI", "FRAX", "LUSD", "MIM", "ALUSD", "USTC", "EURS", "CEUR", "EURT", "EURC", "SBD", "XDR"]);
-  const EXCLUDED = new Set(["DOWN", "UP", "BULL", "BEAR", "LUNA", "LUNA2", "UST"]);
-
-  const filtered = all.filter((t) => {
-    const sym = String(t.symbol ?? "");
-    if (!sym.endsWith("USDT")) return false;
-    const base = sym.slice(0, -4);
-    if (STABLECOINS.has(base)) return false;
-    if (EXCLUDED.has(base)) return false;
-    return true;
-  });
-
-  const top = filtered
-    .sort((a, b) => Number(b.quoteVolume ?? 0) - Number(a.quoteVolume ?? 0))
-    .slice(0, 50);
-
-  return top.map((t) => ({
-    symbol: t.symbol,
-    price: Number(t.lastPrice ?? 0),
-    volume24h: Number(t.quoteVolume ?? 0),
-    priceChange24h: Number(t.priceChangePercent ?? 0),
-  }));
+async function fetchCG(url) {
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`CoinGecko ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return res.json();
 }
 
 async function main() {
-  const startedAt = Date.now();
-
-  console.log("[refresh] Fetching tokens from Binance...");
-  const tokens = await fetchAllTokens();
-  console.log(`[refresh] Fetched ${tokens.length} tokens`);
-
-  if (tokens.length === 0) {
-    console.error("[refresh] No tokens returned");
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
     process.exit(1);
   }
 
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const startedAt = Date.now();
+  console.log("[refresh] Fetching market data from CoinGecko...");
 
+  // Fetch top 100 coins by market cap (excludes stablecoins on CoinGecko side)
+  const coins = await fetchCG(
+    `${CG_API}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false`
+  );
+
+  // Compute basic scores
+  const maxCap = Math.max(...coins.filter(c => c.market_cap).map(c => c.market_cap), 1);
+  const maxVol = Math.max(...coins.filter(c => c.total_volume).map(c => c.total_volume), 1);
+  const maxChange = Math.max(...coins.map(c => Math.abs(c.price_change_percentage_24h ?? 0)), 1);
+
+  const tokens = coins.map((c) => {
+    const mcapScore = ((c.market_cap ?? 0) / maxCap) * 100;
+    const volScore = Math.min(100, ((c.total_volume ?? 0) / maxVol) * 100);
+    const changeScore = 50 + ((c.price_change_percentage_24h ?? 0) / maxChange) * 30;
+    const momentum = Math.max(0, Math.min(100, Math.round(changeScore)));
+    const smartMoney = Math.max(0, Math.min(100, Math.round(mcapScore * 0.6 + volScore * 0.4)));
+    const consensus = Math.max(0, Math.min(100, Math.round(momentum * 0.4 + smartMoney * 0.4 + volScore * 0.2)));
+
+    return {
+      symbol: (c.symbol + "USDT").toUpperCase(),
+      name: c.name,
+      price: c.current_price ?? 0,
+      volume24h: c.total_volume ?? 0,
+      priceChange24h: c.price_change_percentage_24h ?? 0,
+      marketCap: c.market_cap ?? 0,
+      momentum,
+      smartMoney,
+      structure: Math.max(0, Math.min(100, Math.round(mcapScore * 0.5 + volScore * 0.5))),
+      accumulation: Math.max(0, Math.min(100, Math.round(volScore * 0.7 + (c.price_change_percentage_24h ?? 0) * 0.5))),
+      sentiment: Math.max(0, Math.min(100, Math.round(50 + (c.price_change_percentage_24h ?? 0) * 2))),
+      mmFootprint: 50,
+      consensus,
+      tags: [],
+    };
+  }).filter((t) => t.price > 0);
+
+  console.log(`[refresh] Fetched ${tokens.length} tokens`);
+
+  // Store in Supabase
   const res = await fetch(`${SUPABASE_URL}/rest/v1/market_snapshots`, {
     method: "POST",
     headers: {
@@ -77,22 +91,6 @@ async function main() {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Supabase insert failed (${res.status}): ${text}`);
-  }
-
-  // Prune old snapshots
-  const listRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/market_snapshots?select=id&order=id.desc&limit=500`,
-    { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` } }
-  );
-  if (listRes.ok) {
-    const ids = await listRes.json();
-    if (ids.length >= 500) {
-      const keepIds = ids.map(r => r.id);
-      await fetch(`${SUPABASE_URL}/rest/v1/market_snapshots?id=not.in.(${keepIds.join(",")})`, {
-        method: "DELETE",
-        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
-      });
-    }
   }
 
   console.log(`[refresh] Done (${tokens.length} tokens, ${Date.now() - startedAt}ms)`);
