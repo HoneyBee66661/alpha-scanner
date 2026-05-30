@@ -1,17 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
 import { fetchAllTokens } from "../src/lib/binance.js";
 import { runAITrader } from "../src/lib/aiTrader.js";
 import { sendTelegramAlert, formatTradeAlert } from "../src/lib/telegram.js";
 import type { PaperTrade, UserSettings } from "../src/types/index.js";
-
-// ── Supabase helpers ──────────────────────────────────────────────────
-
-function getSupabase() {
-  return createClient(
-    process.env.VITE_SUPABASE_URL || "",
-    process.env.VITE_SUPABASE_ANON_KEY || ""
-  );
-}
+import { supabase } from "./_supabase.js";
 
 function fromDbTrade(row: Record<string, unknown>): PaperTrade {
   return {
@@ -54,7 +45,7 @@ export default async function handler(request: Request): Promise<Response> {
   const startedAt = Date.now();
 
   try {
-    const supabase = getSupabase();
+    const supabase = supabase;
     const deepseekApiKey = process.env.DEEPSEEK_API_KEY || "";
 
     // 1. Load settings
