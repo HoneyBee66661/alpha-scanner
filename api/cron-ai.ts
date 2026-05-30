@@ -97,7 +97,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     const trades: PaperTrade[] = (tradesRows ?? []).map(fromDbTrade);
 
     // 3. Fetch token data (falls back to mock data when Binance is unreachable)
-    const { tokens, isMock, error: sourceError } = await fetchFromSource("binance");
+    const { tokens, isMock, error: sourceError } = await fetchFromSource("supabase");
 
     tokens.sort((a, b) => a.symbol.localeCompare(b.symbol));
 
