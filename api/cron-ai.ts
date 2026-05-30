@@ -3,6 +3,7 @@ import { fetchFromSource } from "../src/lib/dataSource.js";
 import { runAITrader } from "../src/lib/aiTrader.js";
 import { sendTelegramAlert, formatTradeAlert } from "../src/lib/telegram.js";
 import type { PaperTrade, UserSettings } from "../src/types/index.js";
+import { STABLECOINS, EXCLUDED_TOKENS } from "../src/types/index.js";
 import { supabase } from "./_supabase.js";
 
 function fromDbTrade(row: Record<string, unknown>): PaperTrade {
@@ -149,7 +150,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
       { deepseekApiKey },
       settings.aiPaperBalance,
       settings.aiTradeBudgetPerTrade,
-      settings.aiTradeMaxPositions
+      settings.aiTradeMaxPositions,
+      startedAt
     );
 
     // 6. Execute trades and send alerts
@@ -168,7 +170,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
         "SELL",
         trade.symbol,
         currentPrice,
-        `[AI] ${recommendation.action}: ${recommendation.reason} (P&L: $${pnl})`
+        `${recommendation.reason} (P&L: $${pnl})`
       );
       await sendTelegramAlert(settings.telegramBotToken, settings.telegramChatId, msg);
       alerts.push(`AI SELL ${trade.symbol}`);
@@ -188,6 +190,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
     for (const { symbol, price, reason, score } of affordable) {
       if (heldSymbols.has(symbol)) continue;
+      const base = symbol.replace("USDT", "");
+      if (STABLECOINS.has(base) || EXCLUDED_TOKENS.has(base)) continue;
 
       const budget = settings.aiTradeBudgetPerTrade;
       balance -= budget;
