@@ -20,9 +20,22 @@ import {
 const BINANCE_SPOT = "https://api.binance.com/api/v3";
 const BINANCE_FUTURES = "https://fapi.binance.com/api/v1";
 
+const FETCH_TIMEOUT = 8000;
+
+async function fetchWithTimeout(url: string, ms = FETCH_TIMEOUT): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function fetchOHLCV(symbol: string, limit = 50): Promise<OHLCV[]> {
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `${BINANCE_SPOT}/klines?symbol=${symbol}&interval=5m&limit=${limit}`
     );
     if (!res.ok) return [];
@@ -47,8 +60,8 @@ async function fetchOHLCV(symbol: string, limit = 50): Promise<OHLCV[]> {
 async function fetchFutures(symbol: string): Promise<FuturesData | null> {
   try {
     const [oiRes, fundingRes] = await Promise.all([
-      fetch(`${BINANCE_FUTURES}/openInterest?symbol=${symbol}`),
-      fetch(`${BINANCE_FUTURES}/fundingRate?symbol=${symbol}&limit=1`),
+      fetchWithTimeout(`${BINANCE_FUTURES}/openInterest?symbol=${symbol}`),
+      fetchWithTimeout(`${BINANCE_FUTURES}/fundingRate?symbol=${symbol}&limit=1`),
     ]);
     const oi = await oiRes.json();
     const fr = await fundingRes.json();
@@ -66,7 +79,7 @@ async function fetchFutures(symbol: string): Promise<FuturesData | null> {
 
 export async function fetchAllTokens(): Promise<TokenRow[]> {
   // Step 1: fetch ALL 24hr tickers in a single call (no symbols param)
-  const tickerRes = await fetch(`${BINANCE_SPOT}/ticker/24hr`);
+  const tickerRes = await fetchWithTimeout(`${BINANCE_SPOT}/ticker/24hr`);
   if (!tickerRes.ok) throw new Error(`Binance ticker/24hr failed: ${tickerRes.status}`);
   const allTickers: Record<string, unknown>[] = await tickerRes.json();
 
