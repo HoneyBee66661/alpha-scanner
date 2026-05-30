@@ -3,8 +3,8 @@ import type {
   FuturesData,
   TokenRow,
   OHLCV,
-} from "../types";
-import { STABLECOINS, EXCLUDED_TOKENS } from "../types";
+} from '../types/index.js';
+import { STABLECOINS, EXCLUDED_TOKENS } from '../types/index.js';
 import {
   computeMomentumScore,
   computeSmartMoneyScore,
@@ -15,7 +15,7 @@ import {
   computeConsensusScore,
   computeOHLCVMetrics,
   generateTags,
-} from "./scores";
+} from './scores.js';
 
 const BINANCE_SPOT = "https://api.binance.com/api/v3";
 const BINANCE_FUTURES = "https://fapi.binance.com/api/v1";

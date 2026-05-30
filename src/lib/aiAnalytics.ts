@@ -1,6 +1,6 @@
-import type { ClosedTrade } from "../types";
-import { computeAnalytics } from "./analytics";
-import type { AnalyticsMetrics } from "./analytics";
+import type { ClosedTrade } from '../types/index.js';
+import { computeAnalytics } from './analytics.js';
+import type { AnalyticsMetrics } from './analytics.js';
 
 export interface AIBenchmark {
   ai: AnalyticsMetrics | null;

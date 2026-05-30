@@ -1,4 +1,4 @@
-import type { OHLCV, Scores, SignalTag } from "../types";
+import type { OHLCV, Scores, SignalTag } from '../types/index.js';
 
 // ── Math helpers ──────────────────────────────────────────────────────────
 

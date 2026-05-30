@@ -1,7 +1,7 @@
-import type { TokenRow, PaperTrade, UserSettings, Scores } from "../types";
-import { getBuyRecommendation } from "./buyRecommendation";
-import { getSellRecommendation } from "./sellRecommendation";
-import type { SellRecommendation } from "./sellRecommendation";
+import type { TokenRow, PaperTrade, UserSettings, Scores } from '../types/index.js';
+import { getBuyRecommendation } from './buyRecommendation.js';
+import { getSellRecommendation } from './sellRecommendation.js';
+import type { SellRecommendation } from './sellRecommendation.js';
 
 export interface AutoBuyAction {
   symbol: string;

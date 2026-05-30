@@ -1,4 +1,4 @@
-import type { TokenRow, OHLCV, SignalTag } from "../types";
+import type { TokenRow, OHLCV, SignalTag } from '../types/index.js';
 
 function clampM(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));

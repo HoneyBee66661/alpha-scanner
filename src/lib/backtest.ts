@@ -1,4 +1,4 @@
-import type { OHLCV } from "../types";
+import type { OHLCV } from '../types/index.js';
 
 interface OHLCVWithScores extends OHLCV {
   momentum: number;

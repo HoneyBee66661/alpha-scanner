@@ -1,6 +1,6 @@
-import type { PaperTrade, Scores } from "../types";
-import { computeOHLCVMetrics } from "./scores";
-import type { OHLCVMetrics } from "./scores";
+import type { PaperTrade, Scores } from '../types/index.js';
+import { computeOHLCVMetrics } from './scores.js';
+import type { OHLCVMetrics } from './scores.js';
 
 export type SellAction =
   | "HOLD"

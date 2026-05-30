@@ -1,5 +1,5 @@
-import type { TokenRow, OHLCV } from "../types";
-import { STABLECOINS, EXCLUDED_TOKENS } from "../types";
+import type { TokenRow, OHLCV } from '../types/index.js';
+import { STABLECOINS, EXCLUDED_TOKENS } from '../types/index.js';
 import {
   computeMomentumScore,
   computeSmartMoneyScore,
@@ -10,7 +10,7 @@ import {
   computeConsensusScore,
   computeOHLCVMetrics,
   generateTags,
-} from "./scores";
+} from './scores.js';
 
 const CG_BASE = "https://api.coingecko.com/api/v3";
 

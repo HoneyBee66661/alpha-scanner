@@ -1,6 +1,6 @@
-import type { TokenRow } from "../types";
-import { fetchAllTokens } from "./binance";
-import { generateMockTokens } from "./mockData";
+import type { TokenRow } from '../types/index.js';
+import { fetchAllTokens } from './binance.js';
+import { generateMockTokens } from './mockData.js';
 
 export type DataSource = "binance";
 

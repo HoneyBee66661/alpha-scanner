@@ -1,4 +1,4 @@
-import type { ClosedTrade } from "../types";
+import type { ClosedTrade } from '../types/index.js';
 
 export interface AnalyticsMetrics {
   totalTrades: number;

@@ -1,4 +1,4 @@
-import { isConfigured, supabase } from "./supabase";
+import { isConfigured, supabase } from './supabase.js';
 
 export interface SignalLogEntry {
   id?: number;

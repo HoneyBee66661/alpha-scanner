@@ -1,4 +1,4 @@
-import type { TokenRow } from "../types";
+import type { TokenRow } from '../types/index.js';
 
 export type BuyAction = "STRONG_BUY" | "BUY" | "WATCH" | "AVOID";
 export type BuyUrgency = "high" | "medium" | "low" | "none";

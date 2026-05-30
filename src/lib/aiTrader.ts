@@ -1,8 +1,8 @@
-import type { TokenRow, PaperTrade } from "../types";
-import type { AutoBuyAction, AutoSellAction } from "./autoTrader";
-import { getSellRecommendation } from "./sellRecommendation";
-import type { SellRecommendation } from "./sellRecommendation";
-import type { Scores } from "../types";
+import type { TokenRow, PaperTrade } from '../types/index.js';
+import type { AutoBuyAction, AutoSellAction } from './autoTrader.js';
+import { getSellRecommendation } from './sellRecommendation.js';
+import type { SellRecommendation } from './sellRecommendation.js';
+import type { Scores } from '../types/index.js';
 
 export interface AITraderConfig {
   deepseekApiKey: string;
