@@ -218,6 +218,33 @@ export default async function handler(request: Request): Promise<Response> {
       executed.push(`BUY ${symbol} @ $${price.toFixed(4)}`);
     }
 
+    // Send idle report if no trades were executed
+    if (executed.length === 0) {
+      const topTokens = tokens
+        .sort((a, b) => b.consensus - a.consensus)
+        .slice(0, 5)
+        .map((t) => `${t.symbol} (${(t.consensus * 100).toFixed(0)}%)`)
+        .join(", ");
+
+      const idleMsg = [
+        `<b> Rule Scan Complete</b>`,
+        `<b>Status:</b> No trade opportunities found`,
+        `<b>Tokens scanned:</b> ${tokens.length}`,
+        `<b>Open positions:</b> ${trades.length}`,
+        `<b>Balance:</b> $${balance.toFixed(2)}`,
+        topTokens ? `<b>Top picks:</b> ${topTokens}` : "",
+        `<i>Alpha Scanner · ${new Date().toLocaleString()}</i>`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      await sendTelegramAlert(
+        settings.telegramBotToken,
+        settings.telegramChatId,
+        idleMsg
+      );
+    }
+
     // Update balance
     await supabase
       .from("user_settings")
