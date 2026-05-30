@@ -20,7 +20,7 @@ import {
 const BINANCE_SPOT = "https://api.binance.com/api/v3";
 const BINANCE_FUTURES = "https://fapi.binance.com/api/v1";
 
-const FETCH_TIMEOUT = 8000;
+const FETCH_TIMEOUT = 3000;
 
 async function fetchWithTimeout(url: string, ms = FETCH_TIMEOUT): Promise<Response> {
   const ctrl = new AbortController();
