@@ -15,9 +15,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { fetchFromSource } = await import("../src/lib/dataSource");
-    const { sendTelegramAlert } = await import("../src/lib/telegram");
-    const { getBuyRecommendation } = await import("../src/lib/buyRecommendation");
+    const { fetchFromSource } = await import("../src/lib/dataSource.js");
+    const { sendTelegramAlert } = await import("../src/lib/telegram.js");
+    const { getBuyRecommendation } = await import("../src/lib/buyRecommendation.js");
 
     const result = await fetchFromSource("binance");
 
@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       // Record mock-data run
       try {
-        const { supabase } = await import("./_supabase");
+        const { supabase } = await import("./_supabase.js");
         await supabase.from("cron_status").upsert(
           { id: 1, last_run_at: new Date().toISOString(), status: "mock", tokens_scanned: 0, strong_buys: 0, error: result.error ?? null },
           { onConflict: "id" }
@@ -83,7 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Record successful run in Supabase
     try {
-      const { supabase } = await import("./_supabase");
+      const { supabase } = await import("./_supabase.js");
       await supabase.from("cron_status").upsert(
         {
           id: 1,
@@ -111,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Record failed run
     try {
-      const { supabase } = await import("./_supabase");
+      const { supabase } = await import("./_supabase.js");
       await supabase.from("cron_status").upsert(
         {
           id: 1,

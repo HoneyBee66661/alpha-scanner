@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   try {
-    const { supabase } = await import("./_supabase");
+    const { supabase } = await import("./_supabase.js");
 
     const { data, error } = await supabase
       .from("cron_status")

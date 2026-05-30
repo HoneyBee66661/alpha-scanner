@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import { fetchAllTokens } from "../src/lib/binance";
-import { runAutoTrader } from "../src/lib/autoTrader";
-import { sendTelegramAlert, formatTradeAlert } from "../src/lib/telegram";
-import type { PaperTrade, UserSettings } from "../src/types";
+import { fetchAllTokens } from "../src/lib/binance.js";
+import { runAutoTrader } from "../src/lib/autoTrader.js";
+import { sendTelegramAlert, formatTradeAlert } from "../src/lib/telegram.js";
+import type { PaperTrade, UserSettings } from "../src/types.js";
 
 // ── Supabase helpers ──────────────────────────────────────────────────
 
