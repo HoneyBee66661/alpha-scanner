@@ -1,13 +1,12 @@
 /**
  * Fetches market data from Binance via fetchAllTokens() and stores
- * a JSONB snapshot in Supabase. Intended to run on GitHub Actions
- * every 10 minutes.
+ * a JSONB snapshot in Supabase via REST API (no WebSocket needed).
+ * Intended to run on GitHub Actions every 10 minutes.
  *
  * Usage: npx tsx scripts/refresh-market-data.ts
  * Env:  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
-import { createClient } from "@supabase/supabase-js";
 import { fetchAllTokens } from "../src/lib/binance.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
@@ -17,8 +16,6 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   process.exit(1);
 }
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function main() {
   const startedAt = Date.now();
@@ -32,25 +29,55 @@ async function main() {
     process.exit(1);
   }
 
-  const { error: insertError } = await supabase
-    .from("market_snapshots")
-    .insert({ tokens });
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/market_snapshots`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Prefer": "return=minimal",
+    },
+    body: JSON.stringify({ tokens }),
+  });
 
-  if (insertError) {
-    console.error("[refresh] Failed to insert snapshot:", insertError.message);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    console.error(`[refresh] Supabase insert failed (${res.status}): ${text}`);
     process.exit(1);
   }
 
-  // Prune old snapshots — keep latest 500 (~3.5 days at 10-min intervals)
-  const { data: ids } = await supabase
-    .from("market_snapshots")
-    .select("id")
-    .order("id", { ascending: false })
-    .limit(500);
+  // Prune old snapshots via REST
+  const listRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/market_snapshots?select=id&order=id.desc&limit=500`,
+    {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+    }
+  );
 
-  if (ids && ids.length >= 500) {
-    const keepIds = ids.map((r) => r.id);
-    await supabase.from("market_snapshots").delete().not("id", "in", `(${keepIds.join(",")})`);
+  if (listRes.ok) {
+    const ids: { id: number }[] = await listRes.json();
+    if (ids.length >= 500) {
+      const keepIds = ids.map((r) => r.id);
+      const deleteRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/market_snapshots?id=not.in.(${keepIds.join(",")})`,
+        {
+          method: "DELETE",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+      if (!deleteRes.ok) {
+        const text = await deleteRes.text().catch(() => "");
+        console.warn(`[refresh] Prune failed (${deleteRes.status}): ${text}`);
+      } else {
+        console.log(`[refresh] Pruned old snapshots, keeping ${keepIds.length}`);
+      }
+    }
   }
 
   const elapsed = Date.now() - startedAt;
